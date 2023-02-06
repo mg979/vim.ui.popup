@@ -188,8 +188,20 @@ local function setup_autocommands(close_on, p)
       callback = function(_) pcall(p.resize, p) end
     })
   end
+  if p.follow then
+    -- update position on cursor moved
+    create_autocmd('CursorMoved', {
+      callback = function(_)
+        if p:is_valid() then
+          p:redraw()
+        else
+          return true
+        end
+      end
+    })
+  end
   -- defer this function because it's more reliable
-  -- TODO: figure out this better
+  -- TODO: figure this better out
   if #close_on > 0 then
     defer_fn(function()
       create_autocmd(close_on, {
@@ -353,6 +365,8 @@ local function configure_and_validate(p)
       setup_autocommands(p.close_on, p)
     elseif p.focus then
       setup_autocommands({ "WinLeave" }, p)
+    elseif p.follow then
+      setup_autocommands({ "CursorMovedI", "BufLeave" }, p)
     else
       setup_autocommands({ "CursorMoved", "CursorMovedI", "BufLeave" }, p)
     end
@@ -405,6 +419,7 @@ function popup.new(opts)
   end
 
   p.pos = p.pos or Pos.AT_CURSOR
+  p.follow = p.follow and p.pos == Pos.AT_CURSOR
   p.mode = p.mode or "n"
   p.enter = not_nil_or(p.enter, false)
   p.focusable = p.focus or not_nil_or(p.focusable, true)
