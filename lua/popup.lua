@@ -41,12 +41,6 @@ popup.pos = { -- {{{1
   EDITOR_BOTRIGHT = 15,
 }
 
--- for padding
-LEFT = 1
-RIGHT = 2
-TOP = 3
-BOTTOM = 4
-
 local Pos = popup.pos
 
 --  We keep the tabline visible.
@@ -63,49 +57,47 @@ end
 local function get_row(p, height)
   local rows = vim.o.lines
   local wh = api.nvim_win_get_height(p.prevwin)
-  local pad = p.padding_outer
-  local min = tabline_row() + pad[TOP]
+  local min = tabline_row()
   return ({
                 [Pos.AT_CURSOR] = 1,
-                  [Pos.WIN_TOP] = pad[TOP],
-               [Pos.WIN_BOTTOM] = wh - height - border_width(p) - pad[BOTTOM],
+                  [Pos.WIN_TOP] = 0,
+               [Pos.WIN_BOTTOM] = wh - height - border_width(p),
             [Pos.EDITOR_CENTER] = (rows - height) / 2,
        [Pos.EDITOR_CENTER_LEFT] = (rows - height) / 2,
       [Pos.EDITOR_CENTER_RIGHT] = (rows - height) / 2,
         [Pos.EDITOR_CENTER_TOP] = min,
-     [Pos.EDITOR_CENTER_BOTTOM] = rows - height - pad[BOTTOM],
+     [Pos.EDITOR_CENTER_BOTTOM] = rows - height,
          [Pos.EDITOR_LEFT_WIDE] = min,
         [Pos.EDITOR_RIGHT_WIDE] = min,
           [Pos.EDITOR_TOP_WIDE] = min,
-       [Pos.EDITOR_BOTTOM_WIDE] = rows - height - pad[BOTTOM],
+       [Pos.EDITOR_BOTTOM_WIDE] = rows - height,
            [Pos.EDITOR_TOPLEFT] = min,
           [Pos.EDITOR_TOPRIGHT] = min,
-           [Pos.EDITOR_BOTLEFT] = rows - height - pad[BOTTOM],
-          [Pos.EDITOR_BOTRIGHT] = rows - height - pad[BOTTOM],
+           [Pos.EDITOR_BOTLEFT] = rows - height,
+          [Pos.EDITOR_BOTRIGHT] = rows - height,
   })[p.pos]
 end
 
 local function get_column(p, width)
   local cols = vim.o.columns
   local x = api.nvim_win_get_position(p.prevwin)[2]
-  local pad = p.padding_outer
   return ({
                 [Pos.AT_CURSOR] = 1,
-                  [Pos.WIN_TOP] = x + pad[LEFT],
-               [Pos.WIN_BOTTOM] = x + pad[LEFT],
+                  [Pos.WIN_TOP] = x,
+               [Pos.WIN_BOTTOM] = x,
             [Pos.EDITOR_CENTER] = (cols - width) / 2,
-       [Pos.EDITOR_CENTER_LEFT] = pad[LEFT],
-      [Pos.EDITOR_CENTER_RIGHT] = cols - width - pad[RIGHT],
+       [Pos.EDITOR_CENTER_LEFT] = 0,
+      [Pos.EDITOR_CENTER_RIGHT] = cols - width,
         [Pos.EDITOR_CENTER_TOP] = (cols - width) / 2,
      [Pos.EDITOR_CENTER_BOTTOM] = (cols - width) / 2,
-         [Pos.EDITOR_LEFT_WIDE] = pad[LEFT],
-        [Pos.EDITOR_RIGHT_WIDE] = cols - width - pad[RIGHT],
-          [Pos.EDITOR_TOP_WIDE] = pad[LEFT],
-       [Pos.EDITOR_BOTTOM_WIDE] = pad[LEFT],
-           [Pos.EDITOR_TOPLEFT] = pad[LEFT],
-          [Pos.EDITOR_TOPRIGHT] = cols - width - pad[RIGHT],
-           [Pos.EDITOR_BOTLEFT] = pad[LEFT],
-          [Pos.EDITOR_BOTRIGHT] = cols - width - pad[RIGHT],
+         [Pos.EDITOR_LEFT_WIDE] = 0,
+        [Pos.EDITOR_RIGHT_WIDE] = cols - width,
+          [Pos.EDITOR_TOP_WIDE] = 0,
+       [Pos.EDITOR_BOTTOM_WIDE] = 0,
+           [Pos.EDITOR_TOPLEFT] = 0,
+          [Pos.EDITOR_TOPRIGHT] = cols - width,
+           [Pos.EDITOR_BOTLEFT] = 0,
+          [Pos.EDITOR_BOTRIGHT] = cols - width,
   })[p.pos]
 end
 
@@ -216,18 +208,6 @@ end
 -------------------------------------------------------------------------------
 -- Window configuration for nvim_open_win()
 -------------------------------------------------------------------------------
-
---- Inner and outer paddings: { left, right, top, bottom }
-local function get_padding(p, key)
-  local pad = p[key]
-  if type(pad) == 'table' then
-    return pad
-  elseif type(pad) == 'number' then
-    return { pad, pad, pad, pad }
-  else
-    return { 0, 0, 0, 0 }
-  end
-end
 
 --- Calculate the width of the popup.
 ---@param p table
@@ -434,8 +414,6 @@ function popup.new(opts)
   p.disposable = not_nil_or(p.disposable, not buf_is_valid(p.buf or -1))
   -- let the popup resize automatically by default when its content changes
   p.autoresize = not_nil_or(p.autoresize, true)
-  p.padding_outer = get_padding(p, 'outer')
-  p.padding_inner = get_padding(p, 'inner')
 
   if configure_and_validate(p) then
     p = setmetatable(p, default_metatable(p))
@@ -567,7 +545,6 @@ end
 function Popup:notification(opts, seconds)
   merge(self, opts)
   self.pos = Pos.EDITOR_TOPRIGHT
-  self.padding = 1
   self:show(seconds or 3)
   return self
 end
