@@ -41,6 +41,12 @@ popup.pos = { -- {{{1
   EDITOR_BOTRIGHT = 15,
 }
 
+-- for padding
+LEFT = 1
+RIGHT = 2
+TOP = 3
+BOTTOM = 4
+
 local Pos = popup.pos
 
 --  We keep the tabline visible.
@@ -48,51 +54,58 @@ local function tabline_row()
   return vim.o.showtabline ~= 0 and 1 or 0
 end
 
+--- Get border width for popup window (sum of both sides).
+local function border_width(p)
+  return p.wincfg and p.wincfg.border ~= "none" and 2 or 0
+end
+
 --- Get row for popup, based on popup position.
 local function get_row(p, height)
   local rows = vim.o.lines
   local wh = api.nvim_win_get_height(p.prevwin)
-  local min = tabline_row()
+  local pad = p.padding_outer
+  local min = tabline_row() + pad[TOP]
   return ({
                 [Pos.AT_CURSOR] = 1,
-                  [Pos.WIN_TOP] = 0,
-               [Pos.WIN_BOTTOM] = wh - height - border_width(p),
+                  [Pos.WIN_TOP] = pad[TOP],
+               [Pos.WIN_BOTTOM] = wh - height - border_width(p) - pad[BOTTOM],
             [Pos.EDITOR_CENTER] = (rows - height) / 2,
        [Pos.EDITOR_CENTER_LEFT] = (rows - height) / 2,
       [Pos.EDITOR_CENTER_RIGHT] = (rows - height) / 2,
         [Pos.EDITOR_CENTER_TOP] = min,
-     [Pos.EDITOR_CENTER_BOTTOM] = rows - height,
+     [Pos.EDITOR_CENTER_BOTTOM] = rows - height - pad[BOTTOM],
          [Pos.EDITOR_LEFT_WIDE] = min,
         [Pos.EDITOR_RIGHT_WIDE] = min,
           [Pos.EDITOR_TOP_WIDE] = min,
-       [Pos.EDITOR_BOTTOM_WIDE] = rows - height,
+       [Pos.EDITOR_BOTTOM_WIDE] = rows - height - pad[BOTTOM],
            [Pos.EDITOR_TOPLEFT] = min,
           [Pos.EDITOR_TOPRIGHT] = min,
-           [Pos.EDITOR_BOTLEFT] = rows - height,
-          [Pos.EDITOR_BOTRIGHT] = rows - height,
+           [Pos.EDITOR_BOTLEFT] = rows - height - pad[BOTTOM],
+          [Pos.EDITOR_BOTRIGHT] = rows - height - pad[BOTTOM],
   })[p.pos]
 end
 
 local function get_column(p, width)
   local cols = vim.o.columns
   local x = api.nvim_win_get_position(p.prevwin)[2]
+  local pad = p.padding_outer
   return ({
                 [Pos.AT_CURSOR] = 1,
-                  [Pos.WIN_TOP] = x,
-               [Pos.WIN_BOTTOM] = x,
+                  [Pos.WIN_TOP] = x + pad[LEFT],
+               [Pos.WIN_BOTTOM] = x + pad[LEFT],
             [Pos.EDITOR_CENTER] = (cols - width) / 2,
-       [Pos.EDITOR_CENTER_LEFT] = 0,
-      [Pos.EDITOR_CENTER_RIGHT] = cols - width,
+       [Pos.EDITOR_CENTER_LEFT] = pad[LEFT],
+      [Pos.EDITOR_CENTER_RIGHT] = cols - width - pad[RIGHT],
         [Pos.EDITOR_CENTER_TOP] = (cols - width) / 2,
      [Pos.EDITOR_CENTER_BOTTOM] = (cols - width) / 2,
-         [Pos.EDITOR_LEFT_WIDE] = 0,
-        [Pos.EDITOR_RIGHT_WIDE] = cols - width,
-          [Pos.EDITOR_TOP_WIDE] = 0,
-       [Pos.EDITOR_BOTTOM_WIDE] = 0,
-           [Pos.EDITOR_TOPLEFT] = 0,
-          [Pos.EDITOR_TOPRIGHT] = cols - width,
-           [Pos.EDITOR_BOTLEFT] = 0,
-          [Pos.EDITOR_BOTRIGHT] = cols - width,
+         [Pos.EDITOR_LEFT_WIDE] = pad[LEFT],
+        [Pos.EDITOR_RIGHT_WIDE] = cols - width - pad[RIGHT],
+          [Pos.EDITOR_TOP_WIDE] = pad[LEFT],
+       [Pos.EDITOR_BOTTOM_WIDE] = pad[LEFT],
+           [Pos.EDITOR_TOPLEFT] = pad[LEFT],
+          [Pos.EDITOR_TOPRIGHT] = cols - width - pad[RIGHT],
+           [Pos.EDITOR_BOTLEFT] = pad[LEFT],
+          [Pos.EDITOR_BOTRIGHT] = cols - width - pad[RIGHT],
   })[p.pos]
 end
 
@@ -204,9 +217,16 @@ end
 -- Window configuration for nvim_open_win()
 -------------------------------------------------------------------------------
 
---- Get border width for popup window (sum of both sides).
-local function border_width(p)
-  return p.wincfg and p.wincfg.border ~= "none" and 2 or 0
+--- Inner and outer paddings: { left, right, top, bottom }
+local function get_padding(p, key)
+  local pad = p[key]
+  if type(pad) == 'table' then
+    return pad
+  elseif type(pad) == 'number' then
+    return { pad, pad, pad, pad }
+  else
+    return { 0, 0, 0, 0 }
+  end
 end
 
 --- Calculate the width of the popup.
@@ -401,18 +421,21 @@ function popup.new(opts)
 
   if p.copy then
     p = copy(p.copy, opts)
-  else
-    p.pos = p.pos or Pos.AT_CURSOR
-    p.mode = p.mode or "n"
-    p.enter = not_nil_or(p.enter, false)
-    p.focusable = p.focus or not_nil_or(p.focusable, true)
-    p.focus = p.enter or (p.focusable and p.focus)
-    p.prevwin = win_is_valid(p.prevwin or -1) and p.prevwin or curwin()
-    -- if buffer is not created, don't wipe it when closing popup
-    p.disposable = not_nil_or(p.disposable, not buf_is_valid(p.buf or -1))
-    -- let the popup resize automatically by default when its content changes
-    p.autoresize = not_nil_or(p.autoresize, true)
+    p.copy = nil
   end
+
+  p.pos = p.pos or Pos.AT_CURSOR
+  p.mode = p.mode or "n"
+  p.enter = not_nil_or(p.enter, false)
+  p.focusable = p.focus or not_nil_or(p.focusable, true)
+  p.focus = p.enter or (p.focusable and p.focus)
+  p.prevwin = win_is_valid(p.prevwin or -1) and p.prevwin or curwin()
+  -- if buffer is not created, don't wipe it when closing popup
+  p.disposable = not_nil_or(p.disposable, not buf_is_valid(p.buf or -1))
+  -- let the popup resize automatically by default when its content changes
+  p.autoresize = not_nil_or(p.autoresize, true)
+  p.padding_outer = get_padding(p, 'outer')
+  p.padding_inner = get_padding(p, 'inner')
 
   if configure_and_validate(p) then
     p = setmetatable(p, default_metatable(p))
