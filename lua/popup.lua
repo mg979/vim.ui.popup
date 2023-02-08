@@ -232,15 +232,6 @@ local function setup_autocommands(p)
         end,
       })
     end
-
-    --- clear autocommands when the popup closes
-    create_autocmd(p, 'WinClosed', {
-      pattern = tostring(p.win),
-      callback = function(_)
-        pcall(api.nvim_del_augroup_by_id, p._aug)
-        return true
-      end
-    })
   end)
 end
 
