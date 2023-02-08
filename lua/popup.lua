@@ -632,5 +632,15 @@ function Popup:is_visible()
   return win_is_valid(self.win)
 end
 
+--- Print debug information about a popup value.
+---@param key string|nil
+function Popup:debug(key)
+  if key then
+    print(vim.inspect(self[key]))
+  else
+    print(vim.inspect(self))
+  end
+end
+
 return popup
 -- vim: ft=lua et ts=2 sw=2 fdm=marker
