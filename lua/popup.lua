@@ -9,7 +9,6 @@ local curwin = api.nvim_get_current_win
 local reconfigure = api.nvim_win_set_config
 local create_buf = api.nvim_create_buf
 local open_win = vim.api.nvim_open_win
-local create_autocmd = api.nvim_create_autocmd
 local buf_set_option = api.nvim_buf_set_option
 local buf_get_option = api.nvim_buf_get_option
 local buf_is_valid = api.nvim_buf_is_valid
@@ -110,27 +109,49 @@ end
 
 -- }}}
 
---- Create autocommands to close popup.
---- @param close_on table
+-------------------------------------------------------------------------------
+-- Autocommands clearing/generation
+-------------------------------------------------------------------------------
+
+--- Create an autocommand for the popup and register it in p.au, that will
+--- hold k/v pairs { id = autocmd_info, ... }
+---@param p table
+---@param ev string
+---@param au table
+local function create_autocmd(p, ev, au)
+  local id = api.nvim_create_autocmd(ev, au)
+  p.au[id] = au
+end
+
+--- Clear autocommands previously created by this popup.
+---@param p table
+---@return bool
+local function clear_autocommands(p)
+  p.au = p.au or {}
+  for id in pairs(p.au) do
+    pcall(api.nvim_del_autocmd, id)
+    p.au[id] = nil
+  end
+  return true
+end
+
+--- Create autocommands to close popup and for other callbacks.
 --- @param p table
 local function setup_autocommands(p)
   -- defer this function because it's more reliable
   -- TODO: figure this better out
   defer_fn(function()
-    local close_on = p.close_on
-      or (p.focus and {"WinLeave"})
-      or (p.follow and { "CursorMovedI", "BufLeave" })
-      or { "CursorMoved", "CursorMovedI", "BufLeave" }
+    -- resize the popup on buffer change
     if p.autoresize then
-      -- resize the popup on buffer change
-      create_autocmd('TextChanged', {
+      create_autocmd(p, 'TextChanged', {
         buffer = p.buf,
-        callback = function(_) pcall(p.resize, p) end
+        callback = function(_) return not pcall(p.resize, p) end
       })
     end
+
+    -- update position on cursor moved
     if p.follow then
-      -- update position on cursor moved
-      create_autocmd('CursorMoved', {
+      create_autocmd(p, 'CursorMoved', {
         buffer = p.bufbind,
         callback = function(_)
           if p:is_visible() then
@@ -143,7 +164,7 @@ local function setup_autocommands(p)
     end
     if p.callbacks then
       for _, cb in ipairs(callbacks) do
-        create_autocmd(cb[1], {
+        create_autocmd(p, cb[1], {
           buffer = cb.buffer or p.bufbind,
           group = cb.group,
           pattern = cb.pattern,
@@ -155,8 +176,15 @@ local function setup_autocommands(p)
         })
       end
     end
+
+    local close_on = p.close_on
+      or (p.focus and {"WinLeave"})
+      or (p.follow and { "CursorMovedI", "BufLeave" })
+      or { "CursorMoved", "CursorMovedI", "BufLeave" }
+
+    -- close popup on user-/predefined events
     if next(close_on) then
-      create_autocmd(close_on, {
+      create_autocmd(p, close_on, {
         callback = function(_)
           local ok = pcall(win_close, p.win, true)
           if ok and p.on_dispose then
@@ -166,6 +194,12 @@ local function setup_autocommands(p)
         end,
       })
     end
+
+    --- clear autocommands when the popup closes
+    create_autocmd(p, 'WinClosed', {
+      pattern = '^' .. p.win,
+      callback = function(_) return clear_autocommands(p) end
+    })
   end)
 end
 
@@ -331,7 +365,7 @@ local function do_wincfg(p)
 end
 
 -------------------------------------------------------------------------------
--- Popup generation and validation
+-- Popup generation
 -------------------------------------------------------------------------------
 
 --- Ensure the popup object has a valid window and buffer. When this function
@@ -344,7 +378,10 @@ end
 --- Return success.
 ---@param p table
 ---@return bool
-local function configure_and_validate(p)
+local function configure_popup(p)
+  -- clear previous autocommands
+  clear_autocommands(p)
+
   local oldlazy = vim.o.lazyredraw
   vim.o.lazyredraw = true
 
@@ -459,7 +496,7 @@ function popup.new(opts)
   p.autoresize = not_nil_or(p.autoresize, true)
 
   p = setmetatable(p, { __index = Popup })
-  if configure_and_validate(p) and p.on_ready then
+  if configure_popup(p) and p.on_ready then
     p.on_ready()
   end
   return p
@@ -520,7 +557,7 @@ function Popup:redraw(defer)
   if self:is_visible() then
     reconfigure(self.win, do_wincfg(self))
   else
-    configure_and_validate(p)
+    configure_popup(p)
   end
   return self
 end
@@ -534,7 +571,7 @@ function Popup:configure(opts, defer)
     return
   end
   if not self:is_visible() then
-    configure_and_validate(merge(self, opts))
+    configure_popup(merge(self, opts))
     return self:hide()
   end
   -- check if we only want to reconfigure the window, or the whole object
@@ -550,7 +587,7 @@ function Popup:configure(opts, defer)
   if not full then
     reconfigure(self.win, do_wincfg(merge(self, opts)))
   else
-    configure_and_validate(merge(self, opts))
+    configure_popup(merge(self, opts))
   end
   return self
 end
@@ -582,7 +619,7 @@ end
 --- Show popup, optionally for n seconds before hiding it.
 ---@param seconds number
 function Popup:show(seconds)
-  configure_and_validate(self)
+  configure_popup(self)
   if seconds then
     defer_fn(function() self:hide() end, seconds * 1000)
   end
