@@ -44,6 +44,20 @@ popup.pos = { -- {{{1
   EDITOR_BOTRIGHT = 15,
 }
 
+-- popup predefined modes
+popup.mode = {
+  NORMAL = 'n',
+  OPERATOR = 'no',
+  VISUAL = '[vV\x16]',
+  SELECT = '[SS\x13]',
+  INSERT = 'i',
+  COMPLETION = 'ic',
+  REPLACE = 'R',
+  CMDLINE = 'c',
+  TERMINAL = 't',
+  SHELL = '!',
+}
+
 -- }}}
 
 -- Table for popup methods.
@@ -58,6 +72,8 @@ local Pos = popup.pos
 --    KEY         DEFAULT              TYPE        NOTES
 --------------------------------------------------------------------------------
 -- pos          popup.pos.AT_CURSOR   number    expresses desired position/type of popup
+-- mode         'n'                   string    mode pattern in which the popup can be shown
+-- modechange   nil                   func      callback for ModeChanged
 -- win          nil                   number    window id for the popup
 -- buf          nil                   number    buffer number for the popup
 -- bufbind      nil                   number    bind the popup to a single buffer
@@ -141,7 +157,8 @@ local function init_autocommands(p)
   p._aug = api.nvim_create_augroup("__VimUiPopup_" .. get_id(p), { clear = true })
 end
 
---- Create autocommands to close popup and for other callbacks.
+--- Create autocommands to close popup, and for most other callbacks, except
+--- for p.modechange, that is handled on its own.
 --- @param p table
 local function setup_autocommands(p)
   -- defer this function because it's more reliable
@@ -168,6 +185,20 @@ local function setup_autocommands(p)
         end
       })
     end
+
+    -- close the popup when in wrong mode
+    create_autocmd(p, "ModeChanged", {
+      buffer = p.bufbind,
+      pattern = p.mode .. ":*",
+      callback = function(_)
+        if not fn.mode(1):find('^' .. p.mode) then
+          p:hide()
+          return true
+        end
+      end
+    })
+
+    -- custom callbacks
     if p.callbacks then
       for _, cb in ipairs(callbacks) do
         create_autocmd(p, cb[1], {
@@ -211,6 +242,22 @@ local function setup_autocommands(p)
       end
     })
   end)
+end
+
+--- Create an autocommand that triggers on ModeChanged, if the popup has the
+--- 'modechange' attribute.
+---@param p table
+local function setup_modechange(p)
+  if p.modechange then
+    create_autocmd(p, 'ModeChanged', {
+      buffer = p.bufbind,
+      pattern = "*:*",
+      callback = function(arg)
+        local ok, res = pcall(p.modechange, p, arg)
+        return not ok or res == true
+      end
+    })
+  end
 end
 
 -------------------------------------------------------------------------------
@@ -378,10 +425,22 @@ end
 -- Popup generation
 -------------------------------------------------------------------------------
 
---- Ensure the popup object has a valid window and buffer. When this function
---- returns false, the popup object is not deleted nor invalidated, it's only
---- disabled (popup:is_visible() returns false), because it doesn't have
---- a valid window.
+--- Verify that the current mode matches the one set in the popup options.
+---@param p table
+---@return bool
+local function correct_mode(p)
+  local mode = fn.mode()
+  if not p.mode then
+    p.mode = 'n'
+    return mode == 'n'
+  end
+  return mode:find(p.mode)
+end
+
+--- Ensure the popup object has a valid window and buffer, but only do so if the
+--- popup mode matches current |mode()|. When this function returns false, the
+--- popup object is not deleted nor invalidated, it's only disabled
+--- (popup:is_visible() returns false), because it doesn't have a valid window.
 ---
 --- To avoid flicker, set lazyredraw, but restore old value even if there were
 --- errors. Also set up closing autocommands, and set buffer local variables.
@@ -391,6 +450,15 @@ end
 local function configure_popup(p)
   -- clear previous autocommands
   init_autocommands(p)
+
+  -- setup ModeChanged autocommands independently, because the popup may not
+  -- trigger for the current mode, but could trigger in a different mode.
+  setup_modechange(p)
+
+  -- if not in the right mode, we skip the rest of the validation
+  if not correct_mode(p) then
+    return false
+  end
 
   local oldlazy = vim.o.lazyredraw
   vim.o.lazyredraw = true
