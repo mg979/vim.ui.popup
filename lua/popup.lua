@@ -1,6 +1,9 @@
 vim.ui.popup = {}
 local popup = vim.ui.popup
 
+-- incremental id for popups
+local ID = 0
+
 -- api {{{1
 local api = vim.api
 local fn = vim.fn
@@ -113,26 +116,29 @@ end
 -- Autocommands clearing/generation
 -------------------------------------------------------------------------------
 
---- Create an autocommand for the popup and register it in p.au, that will
---- hold k/v pairs { id = autocmd_info, ... }
+-- Unique popup id.
+local function get_id(p)
+  if not p.ID then
+    ID = ID + 1
+    p.ID = ID
+  end
+  return p.ID
+end
+
+--- Create an autocommand for the popup and register it in the popup augroup.
 ---@param p table
 ---@param ev string
 ---@param au table
 local function create_autocmd(p, ev, au)
-  local id = api.nvim_create_autocmd(ev, au)
-  p.au[id] = au
+  au.group = p._aug
+  api.nvim_create_autocmd(ev, au)
 end
 
---- Clear autocommands previously created by this popup.
+--- Initialize augroup for this popup, also clearing autocommands previously
+--- created by it.
 ---@param p table
----@return bool
-local function clear_autocommands(p)
-  p.au = p.au or {}
-  for id in pairs(p.au) do
-    pcall(api.nvim_del_autocmd, id)
-    p.au[id] = nil
-  end
-  return true
+local function init_autocommands(p)
+  p._aug = api.nvim_create_augroup("__VimUiPopup_" .. get_id(p), { clear = true })
 end
 
 --- Create autocommands to close popup and for other callbacks.
@@ -187,6 +193,7 @@ local function setup_autocommands(p)
       create_autocmd(p, close_on, {
         callback = function(_)
           local ok = pcall(win_close, p.win, true)
+          pcall(api.nvim_del_augroup_by_id, p._aug)
           if ok and p.on_dispose then
             p.on_dispose()
           end
@@ -197,8 +204,11 @@ local function setup_autocommands(p)
 
     --- clear autocommands when the popup closes
     create_autocmd(p, 'WinClosed', {
-      pattern = '^' .. p.win,
-      callback = function(_) return clear_autocommands(p) end
+      pattern = tostring(p.win),
+      callback = function(_)
+        pcall(api.nvim_del_augroup_by_id, p._aug)
+        return true
+      end
     })
   end)
 end
@@ -380,7 +390,7 @@ end
 ---@return bool
 local function configure_popup(p)
   -- clear previous autocommands
-  clear_autocommands(p)
+  init_autocommands(p)
 
   local oldlazy = vim.o.lazyredraw
   vim.o.lazyredraw = true
