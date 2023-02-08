@@ -176,7 +176,7 @@ local function setup_autocommands(p)
           pattern = cb.pattern,
           command = cb.command,
           desc = cb.desc,
-          callback = cb.callback,
+          callback = cb.callback and function(arg) return cb.callback(p, arg) end,
           once = cb.once,
           nested = cb.nested,
         })
