@@ -54,12 +54,13 @@ local Pos = popup.pos
 --------------------------------------------------------------------------------
 -- pos          popup.pos.AT_CURSOR   number    expresses desired position/type of popup
 -- win          nil                   number    window id for the popup
+-- bfn          nil                   func      function returning (lines{}, opts{}) or number
 -- buf          nil                   number    buffer number for the popup
 -- bufbind      nil                   number    bind the popup to a single buffer
 -- enter        false                 bool      enter popup window after creation
--- bufopts      nil                   table     buffer options: { option = value, ... }
--- winopts      nil                   table     window options: { option = value, ... }
--- wincfg       nil                   table     options for nvim_open_win
+-- bufopts      {}                    table     buffer options: { option = value, ... }
+-- winopts      {}                    table     window options: { option = value, ... }
+-- wincfg       {}                    table     options for nvim_open_win
 -- hide_on      nil                   table     LIST of strings: events that hide the popup
 -- on_show      nil                   func      called after popup is shown
 -- on_hide      nil                   func      called just before hiding the popup
@@ -377,9 +378,21 @@ local function prepare_buffer(p)
   -- remember previous buffer used by popup
   p._.oldbuf = p.buf
 
-  if p[1] or not buf_is_valid(p.buf or -1) then
-    -- make scratch buffer with given lines, or empty buffer
+  if p.bfn then
+    -- get buffer (or its lines) from result of function
+    local buf, opts = p.bfn(p)
+    if type(buf) == 'number' then
+      p.buf = buf
+    elseif type(buf) == 'table' then
+      p.buf = create_buf(buf, merge(opts, { scratch = true }))
+    end
+  elseif p[1] then
+    -- make scratch buffer with given lines
     p.buf = create_buf(p[1] or {}, merge(p.bufopts, { scratch = true }))
+    p[1] = nil
+  elseif not buf_is_valid(p.buf or -1) then
+    -- make scratch buffer
+    p.buf = create_buf({}, merge(p.bufopts, { scratch = true }))
   end
 
   if not buf_is_valid(p.buf or -1) then
@@ -439,7 +452,7 @@ local function configure_popup(p)
     print(err)
   end
 
-  return true
+  return ok
 end
 
 --- Create a copy of a previous popup, optionally with some different options
@@ -536,19 +549,58 @@ end
 -- Popup methods
 --------------------------------------------------------------------------------
 
---- Redraw the popup, so that its size and position is adjusted, based on the
---- contents of its buffer. If the cursor position changed, defer should be
---- true, so that previous window is invalidated in time.
---- TODO: this should be done automatically when buffer content changes.
----@param defer bool
-function Popup:resize(defer)
-  if defer then
-    defer_fn(function() self:resize() end)
-    return
+--- Check if popup is visible.
+---@return bool
+function Popup:is_visible()
+  return win_is_valid(self.win or -1)
+end
+
+--- Remove every information that the popup object holds.
+function Popup:destroy()
+  if has_method(self, 'on_dispose') and self:on_dispose() then
+    return self
   end
-  self.wincfg.width = nil
-  self.wincfg.height = nil
-  return self:redraw()
+  self:hide()
+  self = nil
+end
+
+--- Show popup, optionally for n seconds before hiding it.
+---@param seconds number
+function Popup:show(seconds)
+  if not buf_is_valid(self.buf or -1) then
+    self:destroy()
+    error("Popup doesn't have a valid buffer.")
+  end
+  if not configure_popup(self) then
+    return self
+  end
+  on_show_autocommands(self)
+  open_popup_win(self)
+  if seconds then
+    defer_fn(function() self:hide() end, seconds * 1000)
+  end
+  if has_method(self, 'on_show') then
+    self:on_show()
+  end
+  return self
+end
+
+--- Hide popup, optionally for n seconds before showing it again.
+---@param seconds number
+function Popup:hide(seconds)
+  if win_is_valid(self.win or -1) then
+    if has_method(self, 'on_hide') and self:on_hide() then
+      return self
+    end
+    win_close(self.win, true)
+    pcall(api.nvim_del_augroup_by_id, self._.aug)
+    -- remove private attributes
+    self._ = nil
+    if seconds then
+      defer_fn(function() self:show() end, seconds * 1000)
+    end
+  end
+  return self
 end
 
 --- Redraw the popup, keeping its config unchanged. If the cursor position
@@ -567,6 +619,21 @@ function Popup:redraw(defer)
     self:show()
   end
   return self
+end
+
+--- Redraw the popup, so that its size and position is adjusted, based on the
+--- contents of its buffer. If the cursor position changed, defer should be
+--- true, so that previous window is invalidated in time.
+--- TODO: this should be done automatically when buffer content changes.
+---@param defer bool
+function Popup:resize(defer)
+  if defer then
+    defer_fn(function() self:resize() end)
+    return
+  end
+  self.wincfg.width = nil
+  self.wincfg.height = nil
+  return self:redraw()
 end
 
 --- Change configuration for the popup.
@@ -612,82 +679,6 @@ end
 function Popup:notification(opts, seconds)
   merge(self, opts).pos = Pos.EDITOR_TOPRIGHT
   return self:show(seconds or 3)
-end
-
---- Hide popup, optionally for n seconds before showing it again.
----@param seconds number
-function Popup:hide(seconds)
-  if win_is_valid(self.win or -1) then
-    if has_method(self, 'on_hide') and self:on_hide() then
-      return self
-    end
-    win_close(self.win, true)
-    pcall(api.nvim_del_augroup_by_id, self._.aug)
-    -- remove private attributes
-    self._ = nil
-    if seconds then
-      defer_fn(function() self:show() end, seconds * 1000)
-    end
-  end
-  return self
-end
-
---- Show popup, optionally for n seconds before hiding it.
----@param seconds number
-function Popup:show(seconds)
-  if not buf_is_valid(self.buf or -1) then
-    self:destroy()
-    error("Popup doesn't have a valid buffer.")
-  end
-  on_show_autocommands(self)
-  open_popup_win(self)
-  if seconds then
-    defer_fn(function() self:hide() end, seconds * 1000)
-  end
-  if has_method(self, 'on_show') then
-    self:on_show()
-  end
-  return self
-end
-
---- Check if popup is visible.
----@return bool
-function Popup:is_visible()
-  return win_is_valid(self.win or -1)
-end
-
---- Remove every information that the popup object holds.
-function Popup:destroy()
-  if has_method(self, 'on_dispose') and self:on_dispose() then
-    return self
-  end
-  self:hide()
-  self = nil
-end
-
---- Print debug information about a popup value.
----@param key string|nil
-function Popup:debug(key)
-  if key then
-    print(vim.inspect(self[key]))
-  else
-    print(vim.inspect(self))
-  end
-end
-
---- Set buffer for popup.
---- `buf` can be a table with lines, or a buffer number.
----@param buf number|table|nil
----@param opts table|nil
-function Popup:set_buffer(buf, opts)
-  if type(buf) == 'number' then
-    self.buf = buf
-  else
-    self.buf = create_buf(buf or {}, opts)
-  end
-  self.bufopts = opts
-  configure_popup(self)
-  return self
 end
 
 function Popup:blend(val)
@@ -752,6 +743,31 @@ function Popup:fade(wait_seconds, for_seconds, endblend, hide_when_over)
       deferred_blend(steplen * i, curblend)
     end
   end
+  return self
+end
+
+--- Print debug information about a popup value.
+---@param key string|nil
+function Popup:debug(key)
+  if key then
+    print(vim.inspect(self[key]))
+  else
+    print(vim.inspect(self))
+  end
+end
+
+--- Set buffer for popup.
+--- `buf` can be a table with lines, or a buffer number.
+---@param buf number|table|nil
+---@param opts table|nil
+function Popup:set_buffer(buf, opts)
+  if type(buf) == 'number' then
+    self.buf = buf
+  else
+    self.buf = create_buf(buf or {}, opts)
+  end
+  self.bufopts = opts
+  configure_popup(self)
   return self
 end
 
