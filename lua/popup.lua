@@ -1,16 +1,12 @@
 vim.ui.popup = {}
 local popup = vim.ui.popup
 
--- incremental id for popups
-local ID = 0
-
 -- api {{{1
 local api = vim.api
 local fn = vim.fn
 local strwidth = fn.strdisplaywidth
 local curwin = api.nvim_get_current_win
 local reconfigure = api.nvim_win_set_config
-local create_buf = api.nvim_create_buf
 local open_win = vim.api.nvim_open_win
 local buf_set_option = api.nvim_buf_set_option
 local buf_get_option = api.nvim_buf_get_option
@@ -44,20 +40,6 @@ popup.pos = { -- {{{1
   EDITOR_BOTRIGHT = 15,
 }
 
--- popup predefined modes
-popup.mode = {
-  NORMAL = 'n',
-  OPERATOR = 'no',
-  VISUAL = '[vV\x16]',
-  SELECT = '[SS\x13]',
-  INSERT = 'i',
-  COMPLETION = 'ic',
-  REPLACE = 'R',
-  CMDLINE = 'c',
-  TERMINAL = 't',
-  SHELL = '!',
-}
-
 -- }}}
 
 -- Table for popup methods.
@@ -66,27 +48,25 @@ local Popup = {}
 -- Table for positions
 local Pos = popup.pos
 
-
 -- Custom options (options for nvim_open_win go in 'wincfg' value):
 --------------------------------------------------------------------------------
 --    KEY         DEFAULT              TYPE        NOTES
 --------------------------------------------------------------------------------
 -- pos          popup.pos.AT_CURSOR   number    expresses desired position/type of popup
--- mode         'n'                   string    mode pattern in which the popup can be shown
--- modechange   nil                   func      callback for ModeChanged
 -- win          nil                   number    window id for the popup
 -- buf          nil                   number    buffer number for the popup
 -- bufbind      nil                   number    bind the popup to a single buffer
--- padding      nil                   nr|tbl    distance from standard anchor
--- disposable   true                  bool      popup self-destructs when hidden
 -- enter        false                 bool      enter popup window after creation
--- callbacks    nil                   table     LIST of tables: autocommands callbacks
--- close_on     nil                   table     LIST of strings: events that close the popup
 -- bufopts      nil                   table     buffer options: { option = value, ... }
 -- winopts      nil                   table     window options: { option = value, ... }
 -- wincfg       nil                   table     options for nvim_open_win
--- on_ready     nil                   func      callback to invoke when popup is ready
--- on_dispose   nil                   func      callback to invoke when popup is disposed
+-- hide_on      nil                   table     LIST of strings: events that hide the popup
+-- on_show      nil                   func      called after popup is shown
+-- on_hide      nil                   func      called just before hiding the popup
+-- on_dispose   nil                   func      called just before destroying the popup
+
+-- The last three methods are invoked with the popup passed as argument. The
+-- popup window is always visible when this happens.
 
 -------------------------------------------------------------------------------
 -- Helpers
@@ -98,6 +78,7 @@ end
 
 local function merge(t1, t2, keep) -- {{{1
   if t2 then
+    t1 = t1 or {}
     if keep then
       for k, v in pairs(t2) do
         if t1[k] == nil then
@@ -126,41 +107,47 @@ local function defer_fn(fn, timeout) -- {{{1
   vim.defer_fn(fn, timeout or 0)
 end
 
+local function set_bufopts(bnr, bo) -- {{{1
+  bo = bo or {}
+  if bo.scratch or not next(bo) then
+    bo.buftype = 'nofile'
+    bo.bufhidden = 'hide'
+    bo.swapfile = false
+    bo.scratch = nil
+  end
+  for opt, val in pairs(bo) do
+    buf_set_option(bnr, opt, val)
+  end
+end
+
+local function create_buf(lines, opts) -- {{{1
+  local bnr = api.nvim_create_buf(false, true)
+  setlines(bnr, lines)
+  set_bufopts(bnr, opts)
+  return bnr
+end
+
 -- }}}
 
 -------------------------------------------------------------------------------
 -- Autocommands clearing/generation
 -------------------------------------------------------------------------------
 
--- Unique popup id.
-local function get_id(p)
-  if not p.ID then
-    ID = ID + 1
-    p.ID = ID
-  end
-  return p.ID
-end
-
 --- Create an autocommand for the popup and register it in the popup augroup.
 ---@param p table
 ---@param ev string
 ---@param au table
 local function create_autocmd(p, ev, au)
-  au.group = p._aug
+  au.group = p._.aug
   api.nvim_create_autocmd(ev, au)
 end
 
 --- Initialize augroup for this popup, also clearing autocommands previously
---- created by it.
----@param p table
-local function init_autocommands(p)
-  p._aug = api.nvim_create_augroup("__VimUiPopup_" .. get_id(p), { clear = true })
-end
-
---- Create autocommands to close popup, and for most other callbacks, except
---- for p.modechange, that is handled on its own.
+--- created by it. Create autocommands for popup callbacks.
 --- @param p table
-local function setup_autocommands(p)
+local function on_show_autocommands(p)
+  p._.aug = api.nvim_create_augroup("__VimUiPopup_" .. p.ID, { clear = true })
+
   -- defer this function because it's more reliable
   -- TODO: figure this better out
   defer_fn(function()
@@ -168,7 +155,7 @@ local function setup_autocommands(p)
     if p.autoresize then
       create_autocmd(p, 'TextChanged', {
         buffer = p.buf,
-        callback = function(_) return not pcall(p.resize, p) end
+        callback = function(_) p:resize() end
       })
     end
 
@@ -177,78 +164,26 @@ local function setup_autocommands(p)
       create_autocmd(p, 'CursorMoved', {
         buffer = p.bufbind,
         callback = function(_)
-          if p:is_visible() then
-            p:redraw()
-          else
-            return true
-          end
+          p:redraw()
         end
       })
     end
 
-    -- close the popup when in wrong mode
-    create_autocmd(p, "ModeChanged", {
-      buffer = p.bufbind,
-      pattern = p.mode .. ":*",
-      callback = function(_)
-        if not fn.mode(1):find('^' .. p.mode) then
-          p:hide()
-          return true
-        end
-      end
-    })
-
-    -- custom callbacks
-    if p.callbacks then
-      for _, cb in ipairs(callbacks) do
-        create_autocmd(p, cb[1], {
-          buffer = cb.buffer or p.bufbind,
-          group = cb.group,
-          pattern = cb.pattern,
-          command = cb.command,
-          desc = cb.desc,
-          callback = cb.callback and function(arg) return cb.callback(p, arg) end,
-          once = cb.once,
-          nested = cb.nested,
-        })
-      end
-    end
-
-    local close_on = p.close_on
+    local hide_on = p.hide_on
       or (p.focus and {"WinLeave"})
       or (p.follow and { "CursorMovedI", "BufLeave" })
       or { "CursorMoved", "CursorMovedI", "BufLeave" }
 
     -- close popup on user-/predefined events
-    if next(close_on) then
-      create_autocmd(p, close_on, {
+    if next(hide_on) then
+      create_autocmd(p, hide_on, {
         callback = function(_)
-          local ok = pcall(win_close, p.win, true)
-          pcall(api.nvim_del_augroup_by_id, p._aug)
-          if ok and p.on_dispose then
-            p.on_dispose()
-          end
+          p:hide()
           return true -- to delete the autocommand
         end,
       })
     end
   end)
-end
-
---- Create an autocommand that triggers on ModeChanged, if the popup has the
---- 'modechange' attribute.
----@param p table
-local function setup_modechange(p)
-  if p.modechange then
-    create_autocmd(p, 'ModeChanged', {
-      buffer = p.bufbind,
-      pattern = "*:*",
-      callback = function(arg)
-        local ok, res = pcall(p.modechange, p, arg)
-        return not ok or res == true
-      end
-    })
-  end
 end
 
 -------------------------------------------------------------------------------
@@ -406,75 +341,62 @@ local function do_wincfg(p)
     bufpos = o.bufpos,
     zindex = o.zindex,
     style = o.style == nil and "minimal" or nil,
-    border = o.border or "single",
+    border = o.border or "none",
     noautocmd = o.noautocmd,
   }
   return p.wincfg
 end
 
 -------------------------------------------------------------------------------
--- Popup generation
+-- Popup registration
 -------------------------------------------------------------------------------
 
---- Verify that the current mode matches the one set in the popup options.
----@param p table
----@return bool
-local function correct_mode(p)
-  local mode = fn.mode()
-  if not p.mode then
-    p.mode = 'n'
-    return mode == 'n'
-  end
-  return mode:find(p.mode)
+-- incremental id for popups, popups table
+local ID, ALL = 0, {}
+
+-- Unique popup id.
+local function get_id()
+  ID = ID + 1
+  return ID
 end
 
---- Ensure the popup object has a valid window and buffer, but only do so if the
---- popup mode matches current |mode()|. When this function returns false, the
---- popup object is not deleted nor invalidated, it's only disabled
---- (popup:is_visible() returns false), because it doesn't have a valid window.
----
+-- Register popup in global table (by namespace and ID) and return it.
+local function register_popup(p)
+  p.ID = get_id()
+  local ns = p.namespace or '_G'
+  ALL[ns] = ALL[ns] or {}
+  ALL[ns][ID] = p
+  return p
+end
+
+-------------------------------------------------------------------------------
+-- Popup generation, local popup functions
+-------------------------------------------------------------------------------
+
+local function prepare_buffer(p)
+  -- remember previous buffer used by popup
+  p._.oldbuf = p.buf
+
+  if p[1] or not buf_is_valid(p.buf or -1) then
+    -- make scratch buffer with given lines, or empty buffer
+    p.buf = create_buf(p[1] or {}, merge(p.bufopts, { scratch = true }))
+  end
+
+  if not buf_is_valid(p.buf or -1) then
+    error("Popup needs a valid buffer.")
+  end
+end
+
 --- To avoid flicker, set lazyredraw, but restore old value even if there were
 --- errors. Also set up closing autocommands, and set buffer local variables.
 --- Return success.
 ---@param p table
 ---@return bool
-local function configure_popup(p)
-  -- clear previous autocommands
-  init_autocommands(p)
-
-  -- setup ModeChanged autocommands independently, because the popup may not
-  -- trigger for the current mode, but could trigger in a different mode.
-  setup_modechange(p)
-
-  -- if not in the right mode, we skip the rest of the validation
-  if not correct_mode(p) then
-    return false
-  end
-
+local function open_popup_win(p)
   local oldlazy = vim.o.lazyredraw
   vim.o.lazyredraw = true
 
-  local function _ev()
-    -- take care of buffer first
-    local oldbuf = p.buf
-    if p[1] then
-      -- make scratch buffer with given lines
-      p.buf = create_buf(false, true)
-      setlines(p.buf, p[1])
-      p.disposable = true
-    elseif not buf_is_valid(p.buf or -1) then
-      p.buf = create_buf(false, true)
-      p.disposable = true
-    end
-
-    -- set buffer options
-    buf_set_option(p.buf, "bufhidden", p.disposable and "wipe" or "hide")
-    if p.bufopts then
-      for opt, val in pairs(p.bufopts) do
-        buf_set_option(p.buf, opt, val)
-      end
-    end
-    -- now the window
+  local function _open()
     p.wincfg = p.wincfg or {}
     -- cursorline disabled for minimal style
     p.winopts = merge(
@@ -485,8 +407,9 @@ local function configure_popup(p)
     if win_is_valid(p.win or -1) then
       if next(p.wincfg) then
         -- this can happen if a popup is reconfigured with a different buffer
-        if oldbuf ~= p.buf then
+        if p._.oldbuf ~= p.buf then
           api.nvim_win_set_buf(p.win, p.buf)
+          p._.oldbuf = p.buf
         end
         reconfigure(p.win, do_wincfg(p))
       end
@@ -497,27 +420,35 @@ local function configure_popup(p)
     for opt, val in pairs(p.winopts) do
       win_set_option(p.win, opt, val)
     end
-    -- setup autocommands and other callbacks
-    setup_autocommands(p)
   end
 
-  local ok, err = pcall(_ev)
+  local ok, err = pcall(_open)
   vim.o.lazyredraw = oldlazy
+  return ok, err
+end
+
+--- Ensure the popup object has a valid buffer. Return success.
+---@param p table
+---@return bool
+local function configure_popup(p)
+  local ok, err
+
+  -- ensure popup has a valid buffer
+  ok, err = pcall(prepare_buffer, p)
   if not ok then
     print(err)
   end
-  return ok
+
+  return true
 end
 
 --- Create a copy of a previous popup, optionally with some different options
 --- provided in the extra argument.
----@param popup table
+---@param p table
 ---@param opts table
 ---@return table
-function copy(popup, opts)
-  -- we must invalidate the window and clear the previous window configuration,
-  -- so that it is reevaluated.
-  local p = merge(opts, popup, true)
+function copy(p, opts)
+  p = merge(opts or {}, p, true)
   p.win = -1
   if p.wincfg then
     -- only keep values that can be valid for different positions
@@ -538,6 +469,10 @@ function copy(popup, opts)
   return p
 end
 
+function has_method(p, name)
+  return p[name] and type(p[name]) == 'function'
+end
+
 -------------------------------------------------------------------------------
 -- Module functions
 -------------------------------------------------------------------------------
@@ -553,45 +488,48 @@ function popup.new(opts)
     p.copy = nil
   end
 
+  p._ = {} -- private attributes
+  p.namespace = p.namespace or '_G'
   p.pos = p.pos or Pos.AT_CURSOR
-  p.follow = p.follow and p.pos == Pos.AT_CURSOR
   p.enter = not_nil_or(p.enter, false)
+  p.follow = p.follow and p.pos == Pos.AT_CURSOR
   p.focusable = p.focus or not_nil_or(p.focusable, true)
   p.focus = p.enter or (p.focusable and p.focus)
   p.prevwin = win_is_valid(p.prevwin or -1) and p.prevwin or curwin()
-  -- if buffer is not created, don't wipe it when closing popup
-  p.disposable = not_nil_or(p.disposable, not buf_is_valid(p.buf or -1))
   -- let the popup resize automatically by default when its content changes
   p.autoresize = not_nil_or(p.autoresize, true)
 
-  p = setmetatable(p, { __index = Popup })
-  if configure_popup(p) and p.on_ready then
-    p.on_ready()
+  -- popup starts disabled
+  if configure_popup(setmetatable(p, { __index = Popup })) then
+    return register_popup(p)
+  else
+    return {}
   end
-  return p
 end
 
 --- Create a buffer from given lines, apply the given options.
---- If bufopts.scratch == true, |scratch-buffer| options are set, but bufhidden
---- is set to 'wipe'. Same if bufopts is nil.
+--- If bufopts.scratch == true, |scratch-buffer| options are set.
 ---@param lines table|string
 ---@param bufopts table|nil
 function popup.make_buffer(lines, bufopts)
-  local buf = create_buf(false, true)
-  setlines(buf, lines)
-  local scratch = not bufopts or bufopts.scratch
-  if bufopts then
-    bufopts.scratch = nil
-    for opt, val in pairs(bufopts) do
-      buf_set_option(buf, opt, val)
+  return create_buf(lines, bufopts)
+end
+
+function popup.get(id)
+  for ns in pairs(ALL) do
+    for k, v in pairs(ALL[ns]) do
+      if k == id then
+        return v
+      end
     end
   end
-  if scratch then
-    buf_set_option(buf, "buftype", "nofile")
-    buf_set_option(buf, "bufhidden", "wipe")
-    buf_set_option(buf, "swapfile", false)
+end
+
+function popup.destroy_ns(ns)
+  for _, v in pairs(ALL[ns] or {}) do
+    v:destroy()
   end
-  return buf
+  ALL[ns] = nil
 end
 
 --------------------------------------------------------------------------------
@@ -626,7 +564,7 @@ function Popup:redraw(defer)
   if self:is_visible() then
     reconfigure(self.win, do_wincfg(self))
   else
-    configure_popup(p)
+    self:show()
   end
   return self
 end
@@ -639,14 +577,15 @@ function Popup:configure(opts, defer)
     defer_fn(function() self:configure(opts) end)
     return
   end
+  -- hidden, we cannot reconfigure only the window
   if not self:is_visible() then
     configure_popup(merge(self, opts))
-    return self:hide()
+    return self
   end
   -- check if we only want to reconfigure the window, or the whole object
   local full = false
   if opts.wincfg then
-    for k, v in pairs(opts) do
+    for _, v in pairs(opts) do
       if v ~= opts.wincfg then
         full = true
         break
@@ -678,9 +617,15 @@ end
 --- Hide popup, optionally for n seconds before showing it again.
 ---@param seconds number
 function Popup:hide(seconds)
-  pcall(win_close, self.win, true)
-  if seconds then
-    defer_fn(function() self:show() end, seconds * 1000)
+  if win_is_valid(self.win or -1) then
+    if has_method(self, 'on_hide') then
+      self:on_hide()
+    end
+    win_close(self.win, true)
+    pcall(api.nvim_del_augroup_by_id, self._.aug)
+    if seconds then
+      defer_fn(function() self:show() end, seconds * 1000)
+    end
   end
   return self
 end
@@ -688,9 +633,17 @@ end
 --- Show popup, optionally for n seconds before hiding it.
 ---@param seconds number
 function Popup:show(seconds)
-  configure_popup(self)
+  if not buf_is_valid(self.buf or -1) then
+    self:destroy()
+    error("Popup doesn't have a valid buffer.")
+  end
+  on_show_autocommands(self)
+  open_popup_win(self)
   if seconds then
     defer_fn(function() self:hide() end, seconds * 1000)
+  end
+  if has_method(self, 'on_show') then
+    self:on_show()
   end
   return self
 end
@@ -698,7 +651,16 @@ end
 --- Check if popup is visible.
 ---@return bool
 function Popup:is_visible()
-  return win_is_valid(self.win)
+  return win_is_valid(self.win or -1)
+end
+
+--- Remove every information that the popup object holds.
+function Popup:destroy()
+  if has_method(self, 'on_dispose') then
+    self:on_dispose()
+  end
+  self:hide()
+  self = nil
 end
 
 --- Print debug information about a popup value.
@@ -709,6 +671,21 @@ function Popup:debug(key)
   else
     print(vim.inspect(self))
   end
+end
+
+--- Set buffer for popup.
+--- `buf` can be a table with lines, or a buffer number.
+---@param buf number|table|nil
+---@param opts table|nil
+function Popup:set_buffer(buf, opts)
+  if type(buf) == 'number' then
+    self.buf = buf
+  else
+    self.buf = create_buf(buf or {}, opts)
+  end
+  self.bufopts = opts
+  configure_popup(self)
+  return self
 end
 
 return popup
