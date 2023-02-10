@@ -58,6 +58,7 @@ local Pos = popup.pos
 -- buf          nil                   number    buffer number for the popup
 -- bufbind      nil                   number    bind the popup to a single buffer
 -- enter        false                 bool      enter popup window after creation
+-- namespace    "_G"                  string    namespace for popup
 -- bufopts      {}                    table     buffer options: { option = value, ... }
 -- winopts      {}                    table     window options: { option = value, ... }
 -- wincfg       {}                    table     options for nvim_open_win
@@ -111,8 +112,8 @@ end
 local function set_bufopts(bnr, bo) -- {{{1
   bo = bo or {}
   if bo.scratch or not next(bo) then
-    bo.buftype = 'nofile'
-    bo.bufhidden = 'hide'
+    bo.buftype = "nofile"
+    bo.bufhidden = "hide"
     bo.swapfile = false
     bo.scratch = nil
   end
@@ -150,28 +151,26 @@ local function on_show_autocommands(p)
   p._.aug = api.nvim_create_augroup("__VimUiPopup_" .. p.ID, { clear = true })
 
   -- defer this function because it's more reliable
-  -- TODO: figure this better out
+  -- FIXME: figure this better out
   defer_fn(function()
     -- resize the popup on buffer change
     if p.autoresize then
-      create_autocmd(p, 'TextChanged', {
+      create_autocmd(p, "TextChanged", {
         buffer = p.buf,
-        callback = function(_) p:resize() end
+        callback = function(_) p:resize() end,
       })
     end
 
     -- update position on cursor moved
     if p.follow then
-      create_autocmd(p, 'CursorMoved', {
+      create_autocmd(p, "CursorMoved", {
         buffer = p.bufbind,
-        callback = function(_)
-          p:redraw()
-        end
+        callback = function(_) p:redraw() end,
       })
     end
 
     local hide_on = p.hide_on
-      or (p.focus and {"WinLeave"})
+      or (p.focus and { "WinLeave" })
       or (p.follow and { "CursorMovedI", "BufLeave" })
       or { "CursorMoved", "CursorMovedI", "BufLeave" }
 
@@ -364,7 +363,7 @@ end
 -- Register popup in global table (by namespace and ID) and return it.
 local function register_popup(p)
   p.ID = get_id()
-  local ns = p.namespace or '_G'
+  local ns = p.namespace or "_G"
   ALL[ns] = ALL[ns] or {}
   ALL[ns][ID] = p
   return p
@@ -376,14 +375,15 @@ end
 
 local function prepare_buffer(p)
   -- remember previous buffer used by popup
+  -- FIXME: is this really necessary?
   p._.oldbuf = p.buf
 
   if p.bfn then
     -- get buffer (or its lines) from result of function
     local buf, opts = p.bfn(p)
-    if type(buf) == 'number' then
+    if type(buf) == "number" then
       p.buf = buf
-    elseif type(buf) == 'table' then
+    elseif type(buf) == "table" then
       p.buf = create_buf(buf, merge(opts, { scratch = true }))
     end
   elseif p[1] then
@@ -502,7 +502,7 @@ function popup.new(opts)
   end
 
   p._ = {} -- private attributes, will be cleared on hide
-  p.namespace = p.namespace or '_G'
+  p.namespace = p.namespace or "_G"
   p.pos = p.pos or Pos.AT_CURSOR
   p.enter = not_nil_or(p.enter, false)
   p.follow = p.follow and p.pos == Pos.AT_CURSOR
@@ -557,7 +557,7 @@ end
 
 --- Remove every information that the popup object holds.
 function Popup:destroy()
-  if has_method(self, 'on_dispose') and self:on_dispose() then
+  if has_method(self, "on_dispose") and self:on_dispose() then
     return self
   end
   self:hide()
@@ -579,7 +579,7 @@ function Popup:show(seconds)
   if seconds then
     defer_fn(function() self:hide() end, seconds * 1000)
   end
-  if has_method(self, 'on_show') then
+  if has_method(self, "on_show") then
     self:on_show()
   end
   return self
@@ -589,7 +589,7 @@ end
 ---@param seconds number
 function Popup:hide(seconds)
   if win_is_valid(self.win or -1) then
-    if has_method(self, 'on_hide') and self:on_hide() then
+    if has_method(self, "on_hide") and self:on_hide() then
       return self
     end
     win_close(self.win, true)
@@ -606,7 +606,6 @@ end
 --- Redraw the popup, keeping its config unchanged. If the cursor position
 --- changed, defer should be true, so that previous window is invalidated in
 --- time.
---- TODO: this should be done automatically when buffer content changes.
 ---@param defer bool
 function Popup:redraw(defer)
   if defer then
@@ -624,7 +623,6 @@ end
 --- Redraw the popup, so that its size and position is adjusted, based on the
 --- contents of its buffer. If the cursor position changed, defer should be
 --- true, so that previous window is invalidated in time.
---- TODO: this should be done automatically when buffer content changes.
 ---@param defer bool
 function Popup:resize(defer)
   if defer then
@@ -681,15 +679,24 @@ function Popup:notification(opts, seconds)
   return self:show(seconds or 3)
 end
 
+--- Set winblend for popup window.
+---@param val number
+---@return table
 function Popup:blend(val)
   if not val or not vim.o.termguicolors or not self:is_visible() then
     return self
   end
   self._.blend = val < 0 and 0 or val > 100 and 100 or val
-  win_set_option(self.win, 'winblend', self._.blend)
+  win_set_option(self.win, "winblend", self._.blend)
   return self
 end
 
+--- Make the popup window fade out.
+---@param wait_seconds number: fading starts after n seconds
+---@param for_seconds number: fading lasts n seconds
+---@param endblend number: final winblend value (0-100)
+---@param hide_when_over bool
+---@return table
 function Popup:fade(wait_seconds, for_seconds, endblend, hide_when_over)
   if not vim.o.termguicolors or not self:is_visible() then
     return self
@@ -702,7 +709,7 @@ function Popup:fade(wait_seconds, for_seconds, endblend, hide_when_over)
   -- stop at full transparency by default
   endblend = endblend or 100
 
-  local startblend = self._.blend or win_get_option(self.win, 'winblend')
+  local startblend = self._.blend or win_get_option(self.win, "winblend")
   if endblend <= startblend then
     return self
   end
@@ -720,12 +727,12 @@ function Popup:fade(wait_seconds, for_seconds, endblend, hide_when_over)
     local stop = steps * steplen
     defer_fn(function()
       if self:is_visible() then
-        win_set_option(self.win, 'winblend', blend)
+        win_set_option(self.win, "winblend", blend)
       end
       if delay >= stop then
         finished = true
         -- hide the window completely when fading is over
-        if hide_when_over or win_get_option(self.win, 'winblend') == 100 then
+        if hide_when_over or win_get_option(self.win, "winblend") == 100 then
           self:hide()
         end
       end
@@ -761,7 +768,7 @@ end
 ---@param buf number|table|nil
 ---@param opts table|nil
 function Popup:set_buffer(buf, opts)
-  if type(buf) == 'number' then
+  if type(buf) == "number" then
     self.buf = buf
   else
     self.buf = create_buf(buf or {}, opts)
