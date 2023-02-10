@@ -488,7 +488,7 @@ function popup.new(opts)
     p.copy = nil
   end
 
-  p._ = {} -- private attributes
+  p._ = {} -- private attributes, will be cleared on hide
   p.namespace = p.namespace or '_G'
   p.pos = p.pos or Pos.AT_CURSOR
   p.enter = not_nil_or(p.enter, false)
@@ -618,11 +618,13 @@ end
 ---@param seconds number
 function Popup:hide(seconds)
   if win_is_valid(self.win or -1) then
-    if has_method(self, 'on_hide') then
-      self:on_hide()
+    if has_method(self, 'on_hide') and self:on_hide() then
+      return self
     end
     win_close(self.win, true)
     pcall(api.nvim_del_augroup_by_id, self._.aug)
+    -- remove private attributes
+    self._ = nil
     if seconds then
       defer_fn(function() self:show() end, seconds * 1000)
     end
@@ -656,8 +658,8 @@ end
 
 --- Remove every information that the popup object holds.
 function Popup:destroy()
-  if has_method(self, 'on_dispose') then
-    self:on_dispose()
+  if has_method(self, 'on_dispose') and self:on_dispose() then
+    return self
   end
   self:hide()
   self = nil
