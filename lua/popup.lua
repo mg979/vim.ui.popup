@@ -197,7 +197,7 @@ end
 
 --- Get border width for popup window (sum of both sides).
 local function border_width(p)
-  return p.wincfg and p.wincfg.border ~= "none" and 2 or 0
+  return ((p.wincfg or {}).border or "none") ~= "none" and 2 or 0
 end
 
 --- Get row for popup, based on popup position.
