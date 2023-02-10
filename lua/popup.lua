@@ -690,5 +690,70 @@ function Popup:set_buffer(buf, opts)
   return self
 end
 
+function Popup:blend(val)
+  if not val or not vim.o.termguicolors or not self:is_visible() then
+    return self
+  end
+  self._.blend = val < 0 and 0 or val > 100 and 100 or val
+  win_set_option(self.win, 'winblend', self._.blend)
+  return self
+end
+
+function Popup:fade(wait_seconds, for_seconds, endblend, hide_when_over)
+  if not vim.o.termguicolors or not self:is_visible() then
+    return self
+  end
+  if wait_seconds and wait_seconds > 0 then
+    defer_fn(function() self:fade(0, for_seconds, endblend) end, wait_seconds * 1000)
+    return self
+  end
+
+  -- stop at full transparency by default
+  endblend = endblend or 100
+
+  local startblend = self._.blend or win_get_option(self.win, 'winblend')
+  if endblend <= startblend then
+    return self
+  end
+  -- step length is 10ms
+  local steplen = 10
+  local steps = (for_seconds or 1) * (1000 / steplen)
+  local stepblend = (endblend - startblend) / steps
+
+  local finished = false
+
+  local function deferred_blend(delay, blend)
+    if finished then
+      return
+    end
+    local stop = steps * steplen
+    defer_fn(function()
+      if self:is_visible() then
+        win_set_option(self.win, 'winblend', blend)
+      end
+      if delay >= stop then
+        finished = true
+        -- hide the window completely when fading is over
+        if hide_when_over or win_get_option(self.win, 'winblend') == 100 then
+          self:hide()
+        end
+      end
+    end, delay)
+  end
+
+  local curblend, f = startblend, startblend
+  for i = 1, steps do
+    f = f + stepblend
+    if f >= 100 then
+      deferred_blend(steplen * i, 100)
+      break
+    elseif math.floor(f) > curblend then
+      curblend = math.floor(f)
+      deferred_blend(steplen * i, curblend)
+    end
+  end
+  return self
+end
+
 return popup
 -- vim: ft=lua et ts=2 sw=2 fdm=marker
