@@ -508,6 +508,7 @@ function Queue:proceed(p)
     local item = table.remove(self, 1)
     -- end of the chain
     self.started = #self > 0
+    -- print("item:" .. vim.inspect(item))
     if item.wait then
       defer_fn(function() self:proceed(p) end, item.wait * 1000)
     else
@@ -535,6 +536,7 @@ function Queue:hide(seconds)
 end
 
 function Queue:configure(opts)
+  -- print("opts:" .. vim.inspect(opts))
   self({ "configure", { opts } })
 end
 
@@ -585,6 +587,7 @@ local mt = {
       return noqueue[method]
     elseif Queue[method] then
       return function(p, ...)
+        -- print("args: " .. vim.inspect(...))
         Queue[method](p.queue, ...)
         -- we start the queue if this is the first method in the chain
         if not p.queue.started then
@@ -705,6 +708,7 @@ function Popup:hide()
     end
     win_close(self.win, true)
   end
+  -- print(vim.inspect(self.winopts or {}))
   pcall(api.nvim_del_augroup_by_id, self._.aug)
 end
 
