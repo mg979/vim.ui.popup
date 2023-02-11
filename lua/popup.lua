@@ -180,7 +180,7 @@ local function on_show_autocommands(p)
     if next(hide_on) then
       create_autocmd(p, hide_on, {
         callback = function(_)
-          p:hide()
+          p:hide_now()
           return true -- to delete the autocommand
         end,
       })
@@ -505,10 +505,10 @@ end
 local Queue = {}
 
 function Queue:proceed(p)
-  if #self.items > 0 then
+  if not self.stop and #self.items > 0 then
     local item = table.remove(self.items, 1)
-    -- print("item:" .. vim.inspect(item))
-    self.started = #self.items > 0 -- reset when chain ends
+    -- reset when chain ends (FIXME: find a better method)
+    self.started = #self.items > 0
     if not self.waiting and item.wait then
       self.waiting = true
       defer_fn(function()
@@ -525,6 +525,11 @@ function Queue:proceed(p)
   end
 end
 
+function Queue:clear_queue()
+  self.stop = true
+  self.items = {}
+end
+
 function Queue:show(seconds)
   self({ "show" })
   if seconds then
@@ -539,6 +544,10 @@ function Queue:hide(seconds)
     self({ wait = ms(seconds) })
     self({ "show" })
   end
+end
+
+function Queue:destroy()
+  self({ "destroy" })
 end
 
 function Queue:configure(opts)
@@ -577,12 +586,10 @@ function Queue:set_buffer(buf, opts)
   self({ "set_buffer", { buf, opts } })
 end
 
--- These methods don't want to be queued
-local noqueue = {
-  is_visible = Popup.is_visible,
-  hide_now = Popup.hide_now,
-  destroy_now = Popup.destroy_now,
-}
+-- These methods don't want to be queued:
+--    Popup.is_visible
+--    Popup.hide_now
+--    Popup.destroy_now
 
 -- Metatable for popup object:
 -- 1. the looked up method must exist in either Popup or Queue
@@ -591,12 +598,10 @@ local noqueue = {
 -- TODO: queue also unkown method by creating a Queue method on the fly
 local mt = {
   __index = function(p, method)
-    if not Popup[method] and not noqueue[method] and not Queue[method] then
+    if not Popup[method] and not Queue[method] then
       return nil
     end
-    if noqueue[method] then
-      return noqueue[method]
-    elseif Queue[method] then
+    if Queue[method] then
       return function(p, ...)
         -- print("args: " .. vim.inspect(...))
         Queue[method](p.queue, ...)
@@ -638,7 +643,7 @@ function popup.new(opts)
     }
   )
 
-  p._ = {} -- private attributes, will be cleared on hide
+  p._ = {} -- private attributes, will be cleared on hide (FIXME: not really doing it)
 
   p.namespace = p.namespace or "_G"
   p.pos = p.pos or Pos.AT_CURSOR
@@ -696,8 +701,25 @@ function Popup:destroy()
     return self
   end
   self:hide()
-  pcall(api.nvim_del_augroup_by_id, self._.aug)
   self = nil
+end
+
+--- Destroy the popup without waiting for the queue to process.
+function Popup:destroy_now()
+  self.queue:clear_queue()
+  if has_method(self, "on_dispose") and self:on_dispose() then
+    return self
+  end
+  --- bypasses queue, cannot use : notation.
+  Popup.hide(self)
+  self = nil
+end
+
+--- Hide the popup without waiting for the queue to process.
+function Popup:hide_now()
+  self.queue:clear_queue()
+  --- bypasses queue, cannot use : notation.
+  Popup.hide(self)
 end
 
 --- Show popup. This is the safe function to run to ensure a popup is correctly
