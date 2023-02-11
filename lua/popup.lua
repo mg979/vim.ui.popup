@@ -514,13 +514,6 @@ function Queue:proceed(p)
         self.waiting = false
         self:proceed(p)
       end, item.wait)
-    elseif not self.waiting and item.items then
-      -- multiple items in a block that must be processed together
-      -- unroll it and put it on top, in the same order as in the block
-      for i = #item.items, 1, -1 do
-        self(item.items[i], 1)
-      end
-      self:proceed(p)
     elseif not self.waiting then
       local method, args = item[1], item[2] and unpack(item[2])
       Popup[method](p, args)
@@ -532,18 +525,18 @@ function Queue:proceed(p)
 end
 
 function Queue:show(seconds)
+  self({ "show" })
   if seconds then
-    self({ items = {{ "show" }, { wait = ms(seconds) }, { "hide" }} })
-  else
-    self({ "show" })
+    self({ wait = ms(seconds) })
+    self({ "hide" })
   end
 end
 
 function Queue:hide(seconds)
+  self({ "hide" })
   if seconds then
-    self({ items = {{ "hide" }, { wait = ms(seconds) }, { "show" }} })
-  else
-    self({ "hide" })
+    self({ wait = ms(seconds) })
+    self({ "show" })
   end
 end
 
@@ -567,9 +560,8 @@ function Queue:blend(val)
 end
 
 function Queue:fade(for_seconds, endblend)
-  self({ items = {
-    { "fade", { for_seconds, endblend } }, { wait = ms(for_seconds or 1) }
-  }})
+  self({ "fade", { for_seconds, endblend } })
+  self({ wait = ms(for_seconds or 1) })
 end
 
 function Queue:wait(seconds)
