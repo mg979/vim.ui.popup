@@ -171,7 +171,7 @@ local function on_show_autocommands(p)
     end
 
     local hide_on = p.hide_on
-      or (p.focus and { "WinLeave" })
+      or (p.enter and { "WinLeave" })
       or (p.follow and { "CursorMovedI", "BufLeave" })
       or { "CursorMoved", "CursorMovedI", "BufLeave" }
 
@@ -338,7 +338,7 @@ local function do_wincfg(p)
     height = height,
     col = custom and o.col or get_column(p, width),
     row = custom and o.row or get_row(p, height),
-    focusable = o.focusable ~= nil and o.focusable or true,
+    focusable = p.enter or (o.focusable == true and true or false),
     bufpos = o.bufpos,
     zindex = o.zindex,
     style = o.style or "minimal",
@@ -643,8 +643,6 @@ function popup.new(opts)
   p.pos = p.pos or Pos.AT_CURSOR
   p.enter = not_nil_or(p.enter, false)
   p.follow = p.follow and p.pos == Pos.AT_CURSOR
-  p.focusable = p.focus or not_nil_or(p.focusable, true)
-  p.focus = p.enter or (p.focusable and p.focus)
   p.prevwin = win_is_valid(p.prevwin or -1) and p.prevwin or curwin()
   -- let the popup resize automatically by default when its content changes
   p.autoresize = not_nil_or(p.autoresize, true)
