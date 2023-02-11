@@ -420,7 +420,7 @@ local function open_popup_win(p)
     -- if previous window is valid, just reconfigure, otherwise open a new one
     if win_is_valid(p.win or -1) then
       if p.has_set_buf then
-        api.nvim_win_set_buf(p.win, p.buf)
+        vim.fn.win_execute(p.win, "noautocmd buffer " .. p.buf, true)
       end
       if next(p.wincfg) then
         reconfigure(p.win, do_wincfg(p))
