@@ -576,6 +576,14 @@ function Queue:wait(seconds)
   self({ wait = ms(seconds or 1) })
 end
 
+function Queue:redraw()
+  self({ "redraw" })
+end
+
+function Queue:resize()
+  self({ "redraw" })
+end
+
 -- These methods don't want to be queued
 local noqueue = {
   is_visible = Popup.is_visible,
