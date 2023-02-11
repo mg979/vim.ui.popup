@@ -342,7 +342,7 @@ local function on_show_autocommands(p)
     if p.autoresize then
       create_autocmd(p, "TextChanged", {
         buffer = p.buf,
-        callback = function(_) p:redraw() end,
+        callback = function(_) Popup.redraw(p) end,
       })
     end
 
@@ -350,7 +350,7 @@ local function on_show_autocommands(p)
     if p.follow then
       create_autocmd(p, "CursorMoved", {
         buffer = p.bufbind,
-        callback = function(_) p:redraw() end,
+        callback = function(_) Popup.redraw(p) end,
       })
     end
 
