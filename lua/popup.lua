@@ -593,12 +593,10 @@ function Popup:hide(seconds)
       return self
     end
     win_close(self.win, true)
-    pcall(api.nvim_del_augroup_by_id, self._.aug)
-    -- remove private attributes
-    self._ = nil
-    if seconds then
-      defer_fn(function() self:show() end, seconds * 1000)
-    end
+  end
+  pcall(api.nvim_del_augroup_by_id, self._.aug)
+  if seconds then
+    defer_fn(function() self:show() end, seconds * 1000)
   end
   return self
 end
