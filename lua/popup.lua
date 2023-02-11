@@ -506,19 +506,20 @@ local Queue = {}
 function Queue:proceed(p)
   if #self.items > 0 then
     local item = table.remove(self.items, 1)
-    -- end of the chain
-    self.started = #self.items > 0
     -- print("item:" .. vim.inspect(item))
-    if item.wait then
-      self.waiting = self.waiting + item.wait
+    self.started = #self.items > 0 -- reset when chain ends
+    if not self.waiting and item.wait then
+      self.waiting = true
       defer_fn(function()
-        self.waiting = self.waiting - item.wait
+        self.waiting = false
         self:proceed(p)
       end, item.wait)
-    elseif self.waiting == 0 then
+    elseif not self.waiting then
       local method, args = item[1], item[2] and unpack(item[2])
       Popup[method](p, args)
       self:proceed(p)
+    else
+      self(item, 1) -- couldn't process item, put it back
     end
   end
 end
@@ -622,7 +623,7 @@ function popup.new(opts)
 
   -- calling the queue adds something to it
   p.queue = setmetatable(
-    { items = {}, waiting = 0 },
+    { items = {} },
     { __call = function(t, v) table.insert(t.items, v) end, __index = Queue }
   )
 
