@@ -499,15 +499,15 @@ end
 -- `is_visible` and other methods that aren't supposed to return the popup
 -- object): in this case the Popup method is returned directly.
 
--- Note: calling the queue itself inserts an item in it (with table.insert)
+-- Note: calling the queue itself inserts an item in queue.items.
 
 local Queue = {}
 
 function Queue:proceed(p)
-  if #self > 0 then
-    local item = table.remove(self, 1)
+  if #self.items > 0 then
+    local item = table.remove(self.items, 1)
     -- end of the chain
-    self.started = #self > 0
+    self.started = #self.items > 0
     -- print("item:" .. vim.inspect(item))
     if item.wait then
       defer_fn(function() self:proceed(p) end, item.wait * 1000)
@@ -617,7 +617,10 @@ function popup.new(opts)
   end
 
   -- calling the queue adds something to it
-  p.queue = setmetatable({}, { __call = function(t, v) table.insert(t, v) end, __index = Queue })
+  p.queue = setmetatable(
+    { items = {} },
+    { __call = function(t, v) table.insert(t.items, v) end, __index = Queue }
+  )
 
   p._ = {} -- private attributes, will be cleared on hide
 
