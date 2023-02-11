@@ -17,7 +17,7 @@ local win_get_config = api.nvim_win_get_config
 local win_get_option = api.nvim_win_get_option
 local win_set_option = api.nvim_win_set_option
 local win_close = api.nvim_win_close
-local Add = table.insert
+local ms = function(s) return s * 1000 end
 -- }}}
 
 -- popup standard positions
@@ -526,7 +526,7 @@ end
 function Queue:show(seconds)
   self({ "show" })
   if seconds then
-    self({ wait = seconds * 1000 })
+    self({ wait = ms(seconds) })
     self({ "hide" })
   end
 end
@@ -534,7 +534,7 @@ end
 function Queue:hide(seconds)
   self({ "hide" })
   if seconds then
-    self({ wait = seconds * 1000 })
+    self({ wait = ms(seconds) })
     self({ "show" })
   end
 end
@@ -560,14 +560,14 @@ end
 
 function Queue:fade(for_seconds, endblend, hide_when_over)
   self({ "fade", { for_seconds, endblend } })
-  self({ wait = (for_seconds or 1) * 1000 })
+  self({ wait = ms(for_seconds or 1) })
   if hide_when_over ~= false then
     self:hide()
   end
 end
 
 function Queue:wait(seconds)
-  self({ wait = seconds * 1000 })
+  self({ wait = ms(seconds or 1) })
 end
 
 -- These methods don't want to be queued
@@ -801,7 +801,7 @@ function Popup:fade(for_seconds, endblend)
   end
   -- step length is 10ms
   local steplen = 10
-  local steps = (for_seconds or 1) * (1000 / steplen)
+  local steps = ms(for_seconds or 1) / steplen
   local stepblend = (endblend - startblend) / steps
 
   local finished = false
