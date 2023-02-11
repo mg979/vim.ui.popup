@@ -17,6 +17,7 @@ local win_get_config = api.nvim_win_get_config
 local win_get_option = api.nvim_win_get_option
 local win_set_option = api.nvim_win_set_option
 local win_close = api.nvim_win_close
+local Add = table.insert
 -- }}}
 
 -- popup standard positions
@@ -487,6 +488,117 @@ function has_method(p, name)
 end
 
 -------------------------------------------------------------------------------
+-- Queue handling
+-------------------------------------------------------------------------------
+
+-- The queue table is stored in popup.queue. When popup methods are called,
+-- some of them are queued rather than instantly invoked. Each method can have
+-- an expected delay, depending on its arguments.
+--
+-- Some methods cannot be queued, therefore cannot be chained (for example
+-- `is_visible` and other methods that aren't supposed to return the popup
+-- object): in this case the Popup method is returned directly.
+
+-- Note: calling the queue itself inserts an item in it (with table.insert)
+
+local Queue = {}
+
+function Queue:proceed(p)
+  if #self > 0 then
+    local item = table.remove(self, 1)
+    -- end of the chain
+    self.started = #self > 0
+    if item.wait then
+      defer_fn(function() self:proceed(p) end, item.wait * 1000)
+    else
+      local method, args = item[1], item[2] and unpack(item[2])
+      Popup[method](p, args)
+      self:proceed(p)
+    end
+  end
+end
+
+function Queue:show(seconds)
+  self({ "show" })
+  if seconds then
+    self({ wait = seconds })
+    self({ "hide" })
+  end
+end
+
+function Queue:hide(seconds)
+  self({ "hide" })
+  if seconds then
+    self({ wait = seconds })
+    self({ "show" })
+  end
+end
+
+function Queue:configure(opts)
+  self({ "configure", { opts } })
+end
+
+function Queue:notification(seconds, opts)
+  self({ "notification", { opts } })
+  self:show(seconds or 3)
+end
+
+function Queue:notification_center(seconds, opts)
+  self({ "notification_center", { opts } })
+  self:show(seconds or 3)
+end
+
+function Queue:blend(val)
+  self({ "blend", { val } })
+end
+
+function Queue:fade(for_seconds, endblend, hide_when_over)
+  self({ "fade", { for_seconds, endblend } })
+  self({ wait = for_seconds or 1 })
+  if hide_when_over ~= false then
+    self:hide()
+  end
+end
+
+function Queue:wait(seconds)
+  self({ wait = seconds })
+end
+
+-- These methods don't want to be queued
+local noqueue = {
+  is_visible = Popup.is_visible,
+  hide_now = Popup.hide_now,
+  destroy_now = Popup.destroy_now,
+}
+
+-- Metatable for popup object:
+-- 1. the looked up method must exist in either Popup or Queue
+-- 2. non-queuable methods are returned right away
+-- 3. queuable methods are added to the queue
+-- TODO: queue also unkown method by creating a Queue method on the fly
+local mt = {
+  __index = function(p, method)
+    if not Popup[method] and not noqueue[method] and not Queue[method] then
+      return nil
+    end
+    if noqueue[method] then
+      return noqueue[method]
+    elseif Queue[method] then
+      return function(p, ...)
+        Queue[method](p.queue, ...)
+        -- we start the queue if this is the first method in the chain
+        if not p.queue.started then
+          p.queue.started = true
+          Queue.proceed(p.queue, p)
+        end
+        return p
+      end
+    end
+    return Popup[method]
+  end
+}
+
+-------------------------------------------------------------------------------
 -- Module functions
 -------------------------------------------------------------------------------
 
@@ -501,7 +613,11 @@ function popup.new(opts)
     p.copy = nil
   end
 
+  -- calling the queue adds something to it
+  p.queue = setmetatable({}, { __call = function(t, v) table.insert(t, v) end, __index = Queue })
+
   p._ = {} -- private attributes, will be cleared on hide
+
   p.namespace = p.namespace or "_G"
   p.pos = p.pos or Pos.AT_CURSOR
   p.enter = not_nil_or(p.enter, false)
@@ -513,7 +629,7 @@ function popup.new(opts)
   p.autoresize = not_nil_or(p.autoresize, true)
 
   -- popup starts disabled
-  if configure_popup(setmetatable(p, { __index = Popup })) then
+  if configure_popup(setmetatable(p, mt)) then
     return register_popup(p)
   else
     return {}
@@ -561,44 +677,35 @@ function Popup:destroy()
     return self
   end
   self:hide()
+  pcall(api.nvim_del_augroup_by_id, self._.aug)
   self = nil
 end
 
---- Show popup, optionally for n seconds before hiding it.
----@param seconds number
-function Popup:show(seconds)
+--- Show popup.
+function Popup:show()
   if not buf_is_valid(self.buf or -1) then
     self:destroy()
     error("Popup doesn't have a valid buffer.")
   end
   if not configure_popup(self) then
-    return self
+    return
   end
   on_show_autocommands(self)
   open_popup_win(self)
-  if seconds then
-    defer_fn(function() self:hide() end, seconds * 1000)
-  end
   if has_method(self, "on_show") then
     self:on_show()
   end
-  return self
 end
 
---- Hide popup, optionally for n seconds before showing it again.
----@param seconds number
-function Popup:hide(seconds)
+--- Hide popup.
+function Popup:hide()
   if win_is_valid(self.win or -1) then
     if has_method(self, "on_hide") and self:on_hide() then
-      return self
+      return
     end
     win_close(self.win, true)
   end
   pcall(api.nvim_del_augroup_by_id, self._.aug)
-  if seconds then
-    defer_fn(function() self:show() end, seconds * 1000)
-  end
-  return self
 end
 
 --- Redraw the popup, keeping its config unchanged.
@@ -608,7 +715,6 @@ function Popup:redraw()
   else
     self:show()
   end
-  return self
 end
 
 --- Redraw the popup, so that its size and position is adjusted, based on the
@@ -616,7 +722,7 @@ end
 function Popup:resize()
   self.wincfg.width = nil
   self.wincfg.height = nil
-  return self:redraw()
+  self:redraw()
 end
 
 --- Change configuration for the popup.
@@ -625,7 +731,7 @@ function Popup:configure(opts)
   -- hidden, we cannot reconfigure only the window
   if not self:is_visible() then
     configure_popup(merge(self, opts))
-    return self
+    return
   end
   -- check if we only want to reconfigure the window, or the whole object
   local full = false
@@ -642,21 +748,18 @@ function Popup:configure(opts)
   else
     configure_popup(merge(self, opts))
   end
-  return self
 end
 
 --- Show the popup at the center of the screen.
 ---@param opts table
-function Popup:notification_center(opts, seconds)
+function Popup:notification_center(opts)
   merge(self, opts).pos = Pos.EDITOR_CENTER
-  return self:show(seconds or 3)
 end
 
 --- Show the popup at the top right corner of the screen.
 ---@param opts table
-function Popup:notification(opts, seconds)
+function Popup:notification(opts)
   merge(self, opts).pos = Pos.EDITOR_TOPRIGHT
-  return self:show(seconds or 3)
 end
 
 --- Set winblend for popup window.
@@ -664,34 +767,26 @@ end
 ---@return table
 function Popup:blend(val)
   if not val or not vim.o.termguicolors or not self:is_visible() then
-    return self
+    return
   end
   self._.blend = val < 0 and 0 or val > 100 and 100 or val
   win_set_option(self.win, "winblend", self._.blend)
-  return self
 end
 
 --- Make the popup window fade out.
----@param wait_seconds number: fading starts after n seconds
 ---@param for_seconds number: fading lasts n seconds
 ---@param endblend number: final winblend value (0-100)
----@param hide_when_over bool
 ---@return table
-function Popup:fade(wait_seconds, for_seconds, endblend, hide_when_over)
+function Popup:fade(for_seconds, endblend)
   if not vim.o.termguicolors or not self:is_visible() then
-    return self
+    return
   end
-  if wait_seconds and wait_seconds > 0 then
-    defer_fn(function() self:fade(0, for_seconds, endblend) end, wait_seconds * 1000)
-    return self
-  end
-
   -- stop at full transparency by default
   endblend = endblend or 100
 
   local startblend = self._.blend or win_get_option(self.win, "winblend")
   if endblend <= startblend then
-    return self
+    return
   end
   -- step length is 10ms
   local steplen = 10
@@ -711,10 +806,6 @@ function Popup:fade(wait_seconds, for_seconds, endblend, hide_when_over)
       end
       if delay >= stop then
         finished = true
-        -- hide the window completely when fading is over
-        if hide_when_over or win_get_option(self.win, "winblend") == 100 then
-          self:hide()
-        end
       end
     end, delay)
   end
@@ -730,7 +821,6 @@ function Popup:fade(wait_seconds, for_seconds, endblend, hide_when_over)
       deferred_blend(steplen * i, curblend)
     end
   end
-  return self
 end
 
 --- Print debug information about a popup value.
@@ -755,7 +845,6 @@ function Popup:set_buffer(buf, opts)
   end
   self.bufopts = opts
   configure_popup(self)
-  return self
 end
 
 return popup
