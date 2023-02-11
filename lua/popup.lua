@@ -150,11 +150,11 @@ end
 --- This function should only run after the window has been created!
 --- @param p table
 local function on_show_autocommands(p)
-  p._.aug = api.nvim_create_augroup("__VimUiPopup_" .. p.ID, { clear = true })
-
   -- defer this function because it's more reliable
-  -- FIXME: figure this better out
+  -- FIXME: no clue why it's needed
   defer_fn(function()
+    p._.aug = api.nvim_create_augroup("__VimUiPopup_" .. p.ID, { clear = true })
+
     -- redraw the popup on buffer change
     if p.autoresize then
       create_autocmd(p, "TextChanged", {
