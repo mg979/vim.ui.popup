@@ -133,62 +133,6 @@ end
 -- }}}
 
 -------------------------------------------------------------------------------
--- Autocommands clearing/generation
--------------------------------------------------------------------------------
-
---- Create an autocommand for the popup and register it in the popup augroup.
----@param p table
----@param ev string
----@param au table
-local function create_autocmd(p, ev, au)
-  au.group = p._.aug
-  api.nvim_create_autocmd(ev, au)
-end
-
---- Initialize augroup for this popup, also clearing autocommands previously
---- created by it. Create autocommands for popup callbacks.
---- This function should only run after the window has been created!
---- @param p table
-local function on_show_autocommands(p)
-  -- defer this function because it's more reliable
-  -- FIXME: no clue why it's needed
-  defer_fn(function()
-    p._.aug = api.nvim_create_augroup("__VimUiPopup_" .. p.ID, { clear = true })
-
-    -- redraw the popup on buffer change
-    if p.autoresize then
-      create_autocmd(p, "TextChanged", {
-        buffer = p.buf,
-        callback = function(_) p:redraw() end,
-      })
-    end
-
-    -- update position on cursor moved
-    if p.follow then
-      create_autocmd(p, "CursorMoved", {
-        buffer = p.bufbind,
-        callback = function(_) p:redraw() end,
-      })
-    end
-
-    local hide_on = p.hide_on
-      or (p.enter and { "WinLeave" })
-      or (p.follow and { "CursorMovedI", "BufLeave" })
-      or { "CursorMoved", "CursorMovedI", "BufLeave" }
-
-    -- close popup on user-/predefined events
-    if next(hide_on) then
-      create_autocmd(p, hide_on, {
-        callback = function(_)
-          p:hide_now()
-          return true -- to delete the autocommand
-        end,
-      })
-    end
-  end)
-end
-
--------------------------------------------------------------------------------
 -- Window configuration for nvim_open_win()
 -------------------------------------------------------------------------------
 
@@ -372,6 +316,62 @@ local function register_popup(p)
 end
 
 -------------------------------------------------------------------------------
+-- Autocommands clearing/generation
+-------------------------------------------------------------------------------
+
+--- Create an autocommand for the popup and register it in the popup augroup.
+---@param p table
+---@param ev string
+---@param au table
+local function create_autocmd(p, ev, au)
+  au.group = p._.aug
+  api.nvim_create_autocmd(ev, au)
+end
+
+--- Initialize augroup for this popup, also clearing autocommands previously
+--- created by it. Create autocommands for popup callbacks.
+--- This function should only run after the window has been created!
+--- @param p table
+local function on_show_autocommands(p)
+  -- defer this function because it's more reliable
+  -- FIXME: no clue why it's needed
+  defer_fn(function()
+    p._.aug = api.nvim_create_augroup("__VimUiPopup_" .. p.ID, { clear = true })
+
+    -- redraw the popup on buffer change
+    if p.autoresize then
+      create_autocmd(p, "TextChanged", {
+        buffer = p.buf,
+        callback = function(_) p:redraw() end,
+      })
+    end
+
+    -- update position on cursor moved
+    if p.follow then
+      create_autocmd(p, "CursorMoved", {
+        buffer = p.bufbind,
+        callback = function(_) p:redraw() end,
+      })
+    end
+
+    local hide_on = p.hide_on
+      or (p.enter and { "WinLeave" })
+      or (p.follow and { "CursorMovedI", "BufLeave" })
+      or { "CursorMoved", "CursorMovedI", "BufLeave" }
+
+    -- close popup on user-/predefined events
+    if next(hide_on) then
+      create_autocmd(p, hide_on, {
+        callback = function(_)
+          p:hide_now()
+          return true -- to delete the autocommand
+        end,
+      })
+    end
+  end)
+end
+
+-------------------------------------------------------------------------------
 -- Popup generation, local popup functions
 -------------------------------------------------------------------------------
 
@@ -493,7 +493,7 @@ end
 -------------------------------------------------------------------------------
 
 -- The queue table is stored in popup.queue. When popup methods are called,
--- some of them are queued rather than instantly invoked. Each method can have
+-- many of them are queued rather than instantly invoked. Each method can have
 -- an expected delay, depending on its arguments.
 --
 -- Some methods cannot be queued, therefore cannot be chained (for example
@@ -501,6 +501,10 @@ end
 -- object): in this case the Popup method is returned directly.
 
 -- Note: calling the queue itself inserts an item in queue.items.
+-- These methods don't want to be queued:
+--    Popup.is_visible    -> bool
+--    Popup.hide_now      -> void, empties queue, removes autocommands
+--    Popup.destroy_now   -> void, invalidates popup object
 
 local Queue = {}
 
@@ -551,7 +555,6 @@ function Queue:destroy()
 end
 
 function Queue:configure(opts)
-  -- print("opts:" .. vim.inspect(opts))
   self({ "configure", { opts } })
 end
 
@@ -586,11 +589,6 @@ function Queue:set_buffer(buf, opts)
   self({ "set_buffer", { buf, opts } })
 end
 
--- These methods don't want to be queued:
---    Popup.is_visible
---    Popup.hide_now
---    Popup.destroy_now
-
 -- Metatable for popup object:
 -- 1. the looked up method must exist in either Popup or Queue
 -- 2. non-queuable methods are returned right away
@@ -603,7 +601,6 @@ local mt = {
     end
     if Queue[method] then
       return function(p, ...)
-        -- print("args: " .. vim.inspect(...))
         Queue[method](p.queue, ...)
         -- we start the queue if this is the first method in the chain
         if not p.queue.started then
@@ -668,6 +665,8 @@ function popup.make_buffer(lines, bufopts)
   return create_buf(lines, bufopts)
 end
 
+--- Get a popup by its ID. How useful is that?
+---@param id number
 function popup.get(id)
   for ns in pairs(ALL) do
     for k, v in pairs(ALL[ns]) do
@@ -678,11 +677,27 @@ function popup.get(id)
   end
 end
 
+--- Destroy all popups in a namespace.
+---@param ns string: required
 function popup.destroy_ns(ns)
   for _, v in pairs(ALL[ns] or {}) do
-    v:destroy()
+    v:destroy_now()
   end
   ALL[ns] = nil
+end
+
+--- Destroy all popups in all tabpages. Completely aspecific!
+function popup.panic()
+  for _, ns in pairs(ALL) do
+    for _, v in pairs(ns) do
+      v:destroy_now()
+    end
+  end
+  for _, win in ipairs(api.nvim_list_wins()) do
+    if api.nvim_win_get_config(win).relative ~= "" then
+      win_close(win, true)
+    end
+  end
 end
 
 --------------------------------------------------------------------------------
@@ -747,7 +762,6 @@ function Popup:hide()
     end
     win_close(self.win, true)
   end
-  -- print(vim.inspect(self.winopts or {}))
   pcall(api.nvim_del_augroup_by_id, self._.aug)
 end
 
