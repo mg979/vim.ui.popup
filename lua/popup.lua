@@ -341,7 +341,7 @@ local function do_wincfg(p)
     focusable = o.focusable ~= nil and o.focusable or true,
     bufpos = o.bufpos,
     zindex = o.zindex,
-    style = o.style == nil and "minimal" or nil,
+    style = o.style or "minimal",
     border = o.border or "none",
     noautocmd = o.noautocmd,
   }
