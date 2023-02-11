@@ -808,9 +808,7 @@ function Popup:fade(for_seconds, endblend)
       if self:is_visible() then
         win_set_option(self.win, "winblend", blend)
       end
-      if delay >= stop then
-        finished = true
-      end
+      finished = delay >= stop
     end, delay)
   end
 
