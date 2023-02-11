@@ -510,9 +510,12 @@ function Queue:proceed(p)
     self.started = #self.items > 0
     -- print("item:" .. vim.inspect(item))
     if item.wait then
-      self.waiting = true
-      defer_fn(function() self.waiting = false; self:proceed(p) end, item.wait)
-    elseif not self.waiting then
+      self.waiting = self.waiting + item.wait
+      defer_fn(function()
+        self.waiting = self.waiting - item.wait
+        self:proceed(p)
+      end, item.wait)
+    elseif self.waiting == 0 then
       local method, args = item[1], item[2] and unpack(item[2])
       Popup[method](p, args)
       self:proceed(p)
@@ -619,7 +622,7 @@ function popup.new(opts)
 
   -- calling the queue adds something to it
   p.queue = setmetatable(
-    { items = {} },
+    { items = {}, waiting = 0 },
     { __call = function(t, v) table.insert(t.items, v) end, __index = Queue }
   )
 
