@@ -510,8 +510,9 @@ function Queue:proceed(p)
     self.started = #self.items > 0
     -- print("item:" .. vim.inspect(item))
     if item.wait then
-      defer_fn(function() self:proceed(p) end, item.wait * 1000)
-    else
+      self.waiting = true
+      defer_fn(function() self.waiting = false; self:proceed(p) end, item.wait)
+    elseif not self.waiting then
       local method, args = item[1], item[2] and unpack(item[2])
       Popup[method](p, args)
       self:proceed(p)
@@ -522,7 +523,7 @@ end
 function Queue:show(seconds)
   self({ "show" })
   if seconds then
-    self({ wait = seconds })
+    self({ wait = seconds * 1000 })
     self({ "hide" })
   end
 end
@@ -530,7 +531,7 @@ end
 function Queue:hide(seconds)
   self({ "hide" })
   if seconds then
-    self({ wait = seconds })
+    self({ wait = seconds * 1000 })
     self({ "show" })
   end
 end
@@ -542,12 +543,12 @@ end
 
 function Queue:notification(seconds, opts)
   self({ "notification", { opts } })
-  self:show(seconds or 3)
+  self:show(seconds)
 end
 
 function Queue:notification_center(seconds, opts)
   self({ "notification_center", { opts } })
-  self:show(seconds or 3)
+  self:show(seconds)
 end
 
 function Queue:blend(val)
@@ -556,14 +557,14 @@ end
 
 function Queue:fade(for_seconds, endblend, hide_when_over)
   self({ "fade", { for_seconds, endblend } })
-  self({ wait = for_seconds or 1 })
+  self({ wait = (for_seconds or 1) * 1000 })
   if hide_when_over ~= false then
     self:hide()
   end
 end
 
 function Queue:wait(seconds)
-  self({ wait = seconds })
+  self({ wait = seconds * 1000 })
 end
 
 -- These methods don't want to be queued
