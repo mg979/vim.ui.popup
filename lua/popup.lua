@@ -514,6 +514,13 @@ function Queue:proceed(p)
         self.waiting = false
         self:proceed(p)
       end, item.wait)
+    elseif not self.waiting and item.items then
+      -- multiple items in a block that must be processed together
+      -- unroll it and put it on top, in the same order as in the block
+      for i = #item.items, 1, -1 do
+        self(item.items[i], 1)
+      end
+      self:proceed(p)
     elseif not self.waiting then
       local method, args = item[1], item[2] and unpack(item[2])
       Popup[method](p, args)
@@ -525,18 +532,18 @@ function Queue:proceed(p)
 end
 
 function Queue:show(seconds)
-  self({ "show" })
   if seconds then
-    self({ wait = ms(seconds) })
-    self({ "hide" })
+    self({ items = {{ "show" }, { wait = ms(seconds) }, { "hide" }} })
+  else
+    self({ "show" })
   end
 end
 
 function Queue:hide(seconds)
-  self({ "hide" })
   if seconds then
-    self({ wait = ms(seconds) })
-    self({ "show" })
+    self({ items = {{ "hide" }, { wait = ms(seconds) }, { "show" }} })
+  else
+    self({ "hide" })
   end
 end
 
@@ -559,12 +566,10 @@ function Queue:blend(val)
   self({ "blend", { val } })
 end
 
-function Queue:fade(for_seconds, endblend, hide_when_over)
-  self({ "fade", { for_seconds, endblend } })
-  self({ wait = ms(for_seconds or 1) })
-  if hide_when_over ~= false then
-    self:hide()
-  end
+function Queue:fade(for_seconds, endblend)
+  self({ items = {
+    { "fade", { for_seconds, endblend } }, { wait = ms(for_seconds or 1) }
+  }})
 end
 
 function Queue:wait(seconds)
@@ -624,7 +629,12 @@ function popup.new(opts)
   -- calling the queue adds something to it
   p.queue = setmetatable(
     { items = {} },
-    { __call = function(t, v) table.insert(t.items, v) end, __index = Queue }
+    {
+      __index = Queue,
+      __call = function(t, v, pos)
+        if pos then table.insert(t.items, pos, v) else table.insert(t.items, v) end
+      end,
+    }
   )
 
   p._ = {} -- private attributes, will be cleared on hide
