@@ -75,8 +75,8 @@ local Pos = popup.pos
 -- Helpers
 -------------------------------------------------------------------------------
 
-local function not_nil_or(v1, v2) -- {{{1
-  return v1 ~= nil and v1 or v2
+local function true_or_false(v1, v2) -- {{{1
+  return v1 == nil and v2 or v1
 end
 
 local function merge(t1, t2, keep) -- {{{1
@@ -147,6 +147,7 @@ end
 
 --- Initialize augroup for this popup, also clearing autocommands previously
 --- created by it. Create autocommands for popup callbacks.
+--- This function should only run after the window has been created!
 --- @param p table
 local function on_show_autocommands(p)
   p._.aug = api.nvim_create_augroup("__VimUiPopup_" .. p.ID, { clear = true })
@@ -154,11 +155,11 @@ local function on_show_autocommands(p)
   -- defer this function because it's more reliable
   -- FIXME: figure this better out
   defer_fn(function()
-    -- resize the popup on buffer change
+    -- redraw the popup on buffer change
     if p.autoresize then
       create_autocmd(p, "TextChanged", {
         buffer = p.buf,
-        callback = function(_) p:resize() end,
+        callback = function(_) p:redraw() end,
       })
     end
 
@@ -375,11 +376,10 @@ end
 -------------------------------------------------------------------------------
 
 local function prepare_buffer(p)
-  -- remember previous buffer used by popup
-  -- FIXME: is this really necessary?
-  p._.oldbuf = p.buf
-
-  if p.bfn then
+  if p.has_set_buf then
+    -- set by Popup.set_buffer, cleared in open_popup_win
+    p.buf = p.has_set_buf
+  elseif p.bfn then
     -- get buffer (or its lines) from result of function
     local buf, opts = p.bfn(p)
     if type(buf) == "number" then
@@ -419,12 +419,10 @@ local function open_popup_win(p)
     )
     -- if previous window is valid, just reconfigure, otherwise open a new one
     if win_is_valid(p.win or -1) then
+      if p.has_set_buf then
+        api.nvim_win_set_buf(p.win, p.buf)
+      end
       if next(p.wincfg) then
-        -- this can happen if a popup is reconfigured with a different buffer
-        if p._.oldbuf ~= p.buf then
-          api.nvim_win_set_buf(p.win, p.buf)
-          p._.oldbuf = p.buf
-        end
         reconfigure(p.win, do_wincfg(p))
       end
     else
@@ -437,6 +435,9 @@ local function open_popup_win(p)
   end
 
   local ok, err = pcall(_open)
+
+  -- clear variable set by Popup.set_buffer
+  p.has_set_buf = nil
   vim.o.lazyredraw = oldlazy
   return ok, err
 end
@@ -572,8 +573,8 @@ function Queue:redraw()
   self({ "redraw" })
 end
 
-function Queue:resize()
-  self({ "redraw" })
+function Queue:set_buffer(buf, opts)
+  self({ "set_buffer", { buf, opts } })
 end
 
 -- These methods don't want to be queued
@@ -641,11 +642,10 @@ function popup.new(opts)
 
   p.namespace = p.namespace or "_G"
   p.pos = p.pos or Pos.AT_CURSOR
-  p.enter = not_nil_or(p.enter, false)
   p.follow = p.follow and p.pos == Pos.AT_CURSOR
   p.prevwin = win_is_valid(p.prevwin or -1) and p.prevwin or curwin()
-  -- let the popup resize automatically by default when its content changes
-  p.autoresize = not_nil_or(p.autoresize, true)
+  -- let the popup redraw automatically by default when its content changes
+  p.autoredraw = true_or_false(p.autoredraw, true)
 
   -- popup starts disabled
   if configure_popup(setmetatable(p, mt)) then
@@ -700,7 +700,8 @@ function Popup:destroy()
   self = nil
 end
 
---- Show popup.
+--- Show popup. This is the safe function to run to ensure a popup is correctly
+--- displayed.
 function Popup:show()
   if not buf_is_valid(self.buf or -1) then
     self:destroy()
@@ -728,21 +729,13 @@ function Popup:hide()
   pcall(api.nvim_del_augroup_by_id, self._.aug)
 end
 
---- Redraw the popup, keeping its config unchanged.
+--- Redraw the popup, keeping its config unchanged. Cheaper than Popup.show.
 function Popup:redraw()
-  if self:is_visible() then
+  if not self.has_set_buf and self:is_visible() then
     reconfigure(self.win, do_wincfg(self))
   else
     self:show()
   end
-end
-
---- Redraw the popup, so that its size and position is adjusted, based on the
---- contents of its buffer.
-function Popup:resize()
-  self.wincfg.width = nil
-  self.wincfg.height = nil
-  self:redraw()
 end
 
 --- Change configuration for the popup.
@@ -857,9 +850,12 @@ end
 ---@param opts table|nil
 function Popup:set_buffer(buf, opts)
   if type(buf) == "number" then
-    self.buf = buf
+    self.has_set_buf = buf
+    self.bfn = nil
+  elseif type(buf) == "function" then
+    self.bfn = buf
   else
-    self.buf = create_buf(buf or {}, opts)
+    self.has_set_buf = create_buf(buf or {}, opts)
   end
   self.bufopts = opts
   configure_popup(self)
