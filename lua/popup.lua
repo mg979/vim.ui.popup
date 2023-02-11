@@ -601,15 +601,8 @@ function Popup:hide(seconds)
   return self
 end
 
---- Redraw the popup, keeping its config unchanged. If the cursor position
---- changed, defer should be true, so that previous window is invalidated in
---- time.
----@param defer bool
-function Popup:redraw(defer)
-  if defer then
-    defer_fn(function() self:redraw() end)
-    return
-  end
+--- Redraw the popup, keeping its config unchanged.
+function Popup:redraw()
   if self:is_visible() then
     reconfigure(self.win, do_wincfg(self))
   else
@@ -619,14 +612,8 @@ function Popup:redraw(defer)
 end
 
 --- Redraw the popup, so that its size and position is adjusted, based on the
---- contents of its buffer. If the cursor position changed, defer should be
---- true, so that previous window is invalidated in time.
----@param defer bool
-function Popup:resize(defer)
-  if defer then
-    defer_fn(function() self:resize() end)
-    return
-  end
+--- contents of its buffer.
+function Popup:resize()
   self.wincfg.width = nil
   self.wincfg.height = nil
   return self:redraw()
@@ -634,12 +621,7 @@ end
 
 --- Change configuration for the popup.
 ---@param opts table
----@param defer bool
-function Popup:configure(opts, defer)
-  if defer then
-    defer_fn(function() self:configure(opts) end)
-    return
-  end
+function Popup:configure(opts)
   -- hidden, we cannot reconfigure only the window
   if not self:is_visible() then
     configure_popup(merge(self, opts))
