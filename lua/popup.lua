@@ -18,6 +18,7 @@ local win_get_option = api.nvim_win_get_option
 local win_set_option = api.nvim_win_set_option
 local win_close = api.nvim_win_close
 local ms = function(s) return s * 1000 end
+local themes = require("popup.themes")
 -- }}}
 
 -- popup standard positions
@@ -60,6 +61,7 @@ local Pos = popup.pos
 -- bufbind      nil                   number    bind the popup to a single buffer
 -- enter        false                 bool      enter popup window after creation
 -- namespace    "_G"                  string    namespace for popup
+-- theme        "default"             string    popup appearance
 -- bufopts      {}                    table     buffer options: { option = value, ... }
 -- winopts      {}                    table     window options: { option = value, ... }
 -- wincfg       {}                    table     options for nvim_open_win
@@ -414,7 +416,10 @@ local function open_popup_win(p)
     p.wincfg = p.wincfg or {}
     -- cursorline disabled for minimal style
     p.winopts = merge(
-      { cursorline = p.wincfg.style ~= nil and p.wincfg.style ~= "minimal", wrap = true },
+      {
+        cursorline = p.wincfg.style ~= nil and p.wincfg.style ~= "minimal",
+        wrap = true,
+      },
       p.winopts or {}
     )
     -- if previous window is valid, just reconfigure, otherwise open a new one
@@ -428,6 +433,7 @@ local function open_popup_win(p)
     else
       p.win = open_win(p.buf, p.enter, do_wincfg(p))
       p._.blend = win_get_option(p.win, "winblend")
+      themes.apply(p)
     end
     -- set window options
     for opt, val in pairs(p.winopts) do
@@ -755,7 +761,8 @@ function Popup:show()
   end
 end
 
---- Hide popup.
+--- Hide popup. This is always called when the window is closed with a popup
+--- method or autocommand, and also with popup.destroy_ns or popup.panic.
 function Popup:hide()
   if win_is_valid(self.win or -1) then
     if has_method(self, "on_hide") and self:on_hide() then
@@ -763,6 +770,7 @@ function Popup:hide()
     end
     win_close(self.win, true)
   end
+  themes.reset(self)
   pcall(api.nvim_del_augroup_by_id, self._.aug)
 end
 
@@ -844,6 +852,8 @@ function Popup:fade(for_seconds, endblend)
   local stepblend = (endblend - startblend) / steps
 
   local finished = false
+  local b = require'popup.blend'
+  local hi = api.nvim_set_hl
 
   local function deferred_blend(delay, blend)
     if finished then
@@ -853,6 +863,14 @@ function Popup:fade(for_seconds, endblend)
     defer_fn(function()
       if self:is_visible() then
         win_set_option(self.win, "winblend", blend)
+        hi(0, "PopupNormal", {
+          bg = themes.PopupNormal.background,
+          fg = b.blend_fg(blend, "PopupNormal", "Normal"),
+        })
+        hi(0, "PopupBorder", {
+          bg = b.blend_bg(blend, "PopupBorder", "Normal"),
+          fg = b.blend_fg(blend, "PopupBorder", "Normal"),
+        })
         finished = delay >= stop
       else
         finished = true
@@ -871,6 +889,7 @@ function Popup:fade(for_seconds, endblend)
       deferred_blend(steplen * i, curblend)
     end
   end
+  themes.reset(self)
 end
 
 --- Print debug information about a popup value.
