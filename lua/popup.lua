@@ -427,6 +427,7 @@ local function open_popup_win(p)
       end
     else
       p.win = open_win(p.buf, p.enter, do_wincfg(p))
+      p._.blend = win_get_option(p.win, "winblend")
     end
     -- set window options
     for opt, val in pairs(p.winopts) do
@@ -833,7 +834,7 @@ function Popup:fade(for_seconds, endblend)
   -- stop at full transparency by default
   endblend = endblend or 100
 
-  local startblend = self._.blend or win_get_option(self.win, "winblend")
+  local startblend = self._.blend
   if endblend <= startblend then
     return
   end
@@ -852,8 +853,10 @@ function Popup:fade(for_seconds, endblend)
     defer_fn(function()
       if self:is_visible() then
         win_set_option(self.win, "winblend", blend)
+        finished = delay >= stop
+      else
+        finished = true
       end
-      finished = delay >= stop
     end, delay)
   end
 
