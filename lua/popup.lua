@@ -518,8 +518,6 @@ local Queue = {}
 function Queue:proceed(p)
   if not self.stop and #self.items > 0 then
     local item = table.remove(self.items, 1)
-    -- reset when chain ends (FIXME: find a better method)
-    self.started = #self.items > 0
     if not self.waiting and item.wait then
       self.waiting = true
       defer_fn(function()
@@ -617,11 +615,7 @@ local mt = {
     if Queue[method] then
       return function(p, ...)
         Queue[method](p.queue, ...)
-        -- we start the queue if this is the first method in the chain
-        if not p.queue.started then
-          p.queue.started = true
-          Queue.proceed(p.queue, p)
-        end
+        Queue.proceed(p.queue, p)
         return p
       end
     end
