@@ -10,7 +10,6 @@ local api = vim.api
 local M = {}
 
 M.aug = api.nvim_create_augroup("PopupHlts", { clear = true })
-M.ns = api.nvim_create_namespace("VimPopupUi")
 
 
 return M

@@ -42,7 +42,7 @@ function M.default()
   -- we link our groups to the default groups
   -- when blending we need to modify our groups without modifying the original
   for k, v in pairs(links) do
-    hi(u.ns, k, { link = v })
+    hi(0, k, { link = v })
   end
   -- currently we actually use winhighlight, not the namespace (it's 0)
   local wh = {}
@@ -66,7 +66,6 @@ function M.apply(p)
       pcall(M[th])
       M.current = th
     end
-    -- win_set_hl(win, u.ns)
     api.nvim_win_set_option(p.win, 'winhighlight', M.winhighlight)
   end
 end
