@@ -848,45 +848,34 @@ function Popup:fade(for_seconds, endblend)
   if endblend <= startblend then
     return
   end
-  -- step length is 10ms
-  local steplen = 10
+  -- step length is for_seconds / 100, 10ms for 1 second
+  local steplen = (for_seconds or 1) * 0.01
   local steps = ms(for_seconds or 1) / steplen
   local stepblend = (endblend - startblend) / steps
 
-  local finished = false
   local b = require'popup.blend'
   local hi = api.nvim_set_hl
 
   local function deferred_blend(delay, blend)
-    if finished then
-      return
-    end
-    local stop = steps * steplen
     defer_fn(function()
       if self:is_visible() then
         win_set_option(self.win, "winblend", blend)
         hi(0, "PopupNormal", {
-          bg = themes.PopupNormal.background,
+          bg = themes.PopupNormal.background, -- blended by winblend
           fg = b.blend_fg(blend, "PopupNormal", "Normal"),
         })
         hi(0, "PopupBorder", {
           bg = b.blend_bg(blend, "PopupBorder", "Normal"),
           fg = b.blend_fg(blend, "PopupBorder", "Normal"),
         })
-        finished = delay >= stop
-      else
-        finished = true
       end
     end, delay)
   end
 
-  local curblend, f = startblend, startblend
+  local curblend, f = startblend - 1, startblend
   for i = 1, steps do
     f = f + stepblend
-    if f >= 100 then
-      deferred_blend(steplen * i, 100)
-      break
-    elseif math.floor(f) > curblend then
+    if math.floor(f) > curblend then
       curblend = math.floor(f)
       deferred_blend(steplen * i, curblend)
     end
