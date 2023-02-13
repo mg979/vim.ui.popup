@@ -599,9 +599,7 @@ function Queue:blend(val)
 end
 
 function Queue:fade(for_seconds, endblend)
-  self({ items = {
-    { "fade", { for_seconds, endblend } }, { wait = ms(for_seconds or 1) }
-  }})
+  self({ "fade", { for_seconds, endblend } })
 end
 
 function Queue:wait(seconds)
@@ -876,6 +874,7 @@ function Popup:fade(for_seconds, endblend)
   -- stop at full transparency by default
   endblend = endblend or 100
 
+  self.queue.waiting = true
   local startblend = self._.blend
   if endblend <= startblend then
     return
@@ -909,6 +908,10 @@ function Popup:fade(for_seconds, endblend)
           })
         end
       end
+      if delay >= steps * steplen then
+        themes.reset(self)
+        self.queue.waiting = false
+      end
     end, delay)
   end
 
@@ -920,7 +923,6 @@ function Popup:fade(for_seconds, endblend)
       deferred_blend(steplen * i, curblend)
     end
   end
-  themes.reset(self)
 end
 
 --- Print debug information about a popup value.
