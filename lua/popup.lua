@@ -59,6 +59,7 @@ local Pos = popup.pos
 -- bfn          nil                   func      function returning (lines{}, opts{}) or number
 -- buf          nil                   number    buffer number for the popup
 -- bufbind      nil                   number    bind the popup to a single buffer
+-- noqueue      false                 bool      don't use async queuing
 -- enter        false                 bool      enter popup window after creation
 -- namespace    "_G"                  string    namespace for popup
 -- theme        "default"             string    popup appearance
@@ -584,12 +585,12 @@ function Queue:configure(opts)
 end
 
 function Queue:notification(seconds, opts)
-  self({ "notification", { opts } })
+  self({ "notification", { seconds, opts } })
   self:show(seconds)
 end
 
 function Queue:notification_center(seconds, opts)
-  self({ "notification_center", { opts } })
+  self({ "notification_center", { seconds, opts } })
   self:show(seconds)
 end
 
@@ -625,7 +626,13 @@ local mt = {
     if not Popup[method] and not Queue[method] then
       return nil
     end
-    if Queue[method] then
+    if p.noqueue and Queue[method] then
+      -- not using queue, protected call of Popup method
+      return function(p, ...)
+        call(Popup[method], p, ...)
+        return p
+      end
+    elseif Queue[method] then
       return function(p, ...)
         Queue[method](p.queue, ...)
         Queue.proceed(p.queue, p)
@@ -765,7 +772,7 @@ end
 
 --- Show popup. This is the safe function to run to ensure a popup is correctly
 --- displayed.
-function Popup:show()
+function Popup:show(seconds)
   if not buf_is_valid(self.buf or -1) then
     self:destroy()
     error("Popup doesn't have a valid buffer.")
@@ -778,11 +785,14 @@ function Popup:show()
   if has_method(self, "on_show") then
     self:on_show()
   end
+  if self.noqueue and seconds then
+    defer_fn(function() self:hide() end, seconds * 1000)
+  end
 end
 
 --- Hide popup. This is always called when the window is closed with a popup
 --- method or autocommand, and also with popup.destroy_ns or popup.panic.
-function Popup:hide()
+function Popup:hide(seconds)
   if win_is_valid(self.win or -1) then
     if has_method(self, "on_hide") and self:on_hide() then
       return
@@ -791,6 +801,9 @@ function Popup:hide()
   end
   themes.reset(self)
   pcall(api.nvim_del_augroup_by_id, self._.aug)
+  if self.noqueue and seconds then
+    defer_fn(function() self:show() end, seconds * 1000)
+  end
 end
 
 --- Redraw the popup, keeping its config unchanged. Cheaper than Popup.show.
@@ -829,14 +842,16 @@ end
 
 --- Show the popup at the center of the screen.
 ---@param opts table
-function Popup:notification_center(opts)
+function Popup:notification_center(seconds, opts)
   merge(self, opts).pos = Pos.EDITOR_CENTER
+  if self.noqueue then self:show(seconds) end
 end
 
 --- Show the popup at the top right corner of the screen.
 ---@param opts table
-function Popup:notification(opts)
+function Popup:notification(seconds, opts)
   merge(self, opts).pos = Pos.EDITOR_TOPRIGHT
+  if self.noqueue then self:show(seconds) end
 end
 
 --- Set winblend for popup window.
