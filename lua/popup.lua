@@ -81,6 +81,15 @@ local function true_or_false(v1, v2) -- {{{1
   return v1 == nil and v2 or v1
 end
 
+local function call(...)
+  local ok, res = pcall(...)
+  if not ok then
+    print("vim.ui.popup: " .. res)
+    return false
+  end
+  return res or true
+end
+
 local function merge(t1, t2, keep) -- {{{1
   if t2 then
     t1 = t1 or {}
@@ -338,6 +347,9 @@ local function on_show_autocommands(p)
   -- defer this function because it's more reliable
   -- FIXME: no clue why it's needed
   defer_fn(function()
+    if not p:is_visible() then
+      return
+    end
     p._.aug = api.nvim_create_augroup("__VimUiPopup_" .. p.ID, { clear = true })
 
     -- redraw the popup on buffer change
@@ -354,6 +366,12 @@ local function on_show_autocommands(p)
         buffer = p.bufbind,
         callback = function(_) Popup.redraw(p) end,
       })
+    end
+
+    -- if the window should be entered, make sure it actually is
+    -- entering the window immediately is prevented by having p.bfn
+    if p.enter and curwin ~= p.win then
+      api.nvim_set_current_win(p.win)
     end
 
     local hide_on = p.hide_on
@@ -431,7 +449,7 @@ local function open_popup_win(p)
         reconfigure(p.win, do_wincfg(p))
       end
     else
-      p.win = open_win(p.buf, p.enter, do_wincfg(p))
+      p.win = open_win(p.buf, p.enter and not p.bfn, do_wincfg(p))
       p._.blend = win_get_option(p.win, "winblend")
       themes.apply(p)
     end
@@ -456,12 +474,7 @@ local function configure_popup(p)
   local ok, err
 
   -- ensure popup has a valid buffer
-  ok, err = pcall(prepare_buffer, p)
-  if not ok then
-    print(err)
-  end
-
-  return ok
+  return call(prepare_buffer, p)
 end
 
 --- Create a copy of a previous popup, optionally with some different options
@@ -653,7 +666,7 @@ function popup.new(opts)
 
   p.namespace = p.namespace or "_G"
   p.pos = p.pos or Pos.AT_CURSOR
-  p.follow = p.follow and p.pos == Pos.AT_CURSOR
+  p.follow = not p.enter and p.follow and p.pos == Pos.AT_CURSOR
   p.prevwin = win_is_valid(p.prevwin or -1) and p.prevwin or curwin()
   -- let the popup redraw automatically by default when its content changes
   p.autoredraw = true_or_false(p.autoredraw, true)
@@ -920,6 +933,11 @@ function Popup:set_buffer(buf, opts)
   end
   self.bufopts = opts
   configure_popup(self)
+end
+
+-- Dummy function, in case the method is called with the 'noqueue' option.
+function Popup:wait(seconds)
+  return self
 end
 
 return popup

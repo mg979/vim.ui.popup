@@ -60,7 +60,7 @@ M.default()
 --- Skip if the popup has defined its own window highlights.
 ---@param win number: window-ID
 function M.apply(p)
-  if not p.winopts.winhighlight then
+  if p.winopts and not p.winopts.winhighlight then
     local th = p.theme or "default"
     if th ~= M.current then
       pcall(M[th])
@@ -71,7 +71,7 @@ function M.apply(p)
 end
 
 function M.reset(p)
-  if not p.winopts.winhighlight then
+  if p.winopts and not p.winopts.winhighlight then
     pcall(M[p.theme or "default"])
   end
 end
