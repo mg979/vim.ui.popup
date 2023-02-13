@@ -709,6 +709,10 @@ function popup.panic()
   end
 end
 
+function popup.reset()
+  require("popup.blend").clear_caches()
+end
+
 --------------------------------------------------------------------------------
 -- Popup methods
 --------------------------------------------------------------------------------
@@ -866,14 +870,14 @@ function Popup:fade(for_seconds, endblend)
         win_set_option(self.win, "winblend", blend)
         if blend_popup then
           hi(0, "PopupNormal", {
-            bg = themes.PopupNormal.background, -- blended by winblend
-            fg = b.blend_fg(blend, "PopupNormal", "Normal"),
+            bg = themes.PopupNormal.background, -- handled by winblend
+            fg = b.blend_to_bg(blend, "PopupNormal", "Normal", true),
           })
         end
         if blend_border then
           hi(0, "PopupBorder", {
-            bg = b.blend_bg(blend, "PopupBorder", "Normal"),
-            fg = b.blend_fg(blend, "PopupBorder", "Normal"),
+            bg = b.blend_to_bg(blend, "PopupBorder", "Normal", false),
+            fg = b.blend_to_bg(blend, "PopupBorder", "Normal", true),
           })
         end
       end
