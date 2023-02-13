@@ -147,6 +147,11 @@ end
 local function _blend(alpha, src, dst, s, d, foreground)
   BLEND[src] = BLEND[src] or {}
   BLEND[src][dst] = BLEND[src][dst] or {}
+  -- no difference, no need to blend anything
+  if (foreground and s.foreground or s.background) == d.background then
+    BLEND[src][dst][alpha] = d.background
+    return BLEND[src][dst][alpha]
+  end
   s = foreground and s.rgb_fg or s.rgb_bg
   d = d.rgb_bg
   local r, g, b = s.r, s.g, s.b
@@ -192,4 +197,5 @@ end
 return {
   blend_fg = blend_fg,
   blend_bg = blend_bg,
+  get = hltbl,
 }

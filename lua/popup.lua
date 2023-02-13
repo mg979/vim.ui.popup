@@ -853,21 +853,29 @@ function Popup:fade(for_seconds, endblend)
   local steps = ms(for_seconds or 1) / steplen
   local stepblend = (endblend - startblend) / steps
 
-  local b = require'popup.blend'
+  local b = require("popup.blend")
   local hi = api.nvim_set_hl
+
+  local pb, pn, n = b.get("PopupBorder"), b.get("PopupNormal"), b.get("Normal")
+  local blend_border = pb.bg ~= n.bg or pb.fg ~= n.bg
+  local blend_popup  = pn.bg ~= n.bg or pn.fg ~= n.bg
 
   local function deferred_blend(delay, blend)
     defer_fn(function()
       if self:is_visible() then
         win_set_option(self.win, "winblend", blend)
-        hi(0, "PopupNormal", {
-          bg = themes.PopupNormal.background, -- blended by winblend
-          fg = b.blend_fg(blend, "PopupNormal", "Normal"),
-        })
-        hi(0, "PopupBorder", {
-          bg = b.blend_bg(blend, "PopupBorder", "Normal"),
-          fg = b.blend_fg(blend, "PopupBorder", "Normal"),
-        })
+        if blend_popup then
+          hi(0, "PopupNormal", {
+            bg = themes.PopupNormal.background, -- blended by winblend
+            fg = b.blend_fg(blend, "PopupNormal", "Normal"),
+          })
+        end
+        if blend_border then
+          hi(0, "PopupBorder", {
+            bg = b.blend_bg(blend, "PopupBorder", "Normal"),
+            fg = b.blend_fg(blend, "PopupBorder", "Normal"),
+          })
+        end
       end
     end, delay)
   end
