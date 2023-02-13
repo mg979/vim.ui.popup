@@ -16,7 +16,7 @@ local M = { winhighlight = "" }
 -- Reset on colorscheme change.
 api.nvim_create_autocmd("Colorscheme", {
   group = u.aug,
-  callback = function(_) pcall(M[M.current]) end
+  callback = function(_) M.default() end,
 })
 
 -- Default highlight links
@@ -50,7 +50,6 @@ function M.default()
     table.insert(wh, v .. ":" .. k)
   end
   M.winhighlight = table.concat(wh, ",")
-  M.current = "default"
 end
 
 -- Set defaults right away
@@ -61,18 +60,8 @@ M.default()
 ---@param win number: window-ID
 function M.apply(p)
   if p.winopts and not p.winopts.winhighlight then
-    local th = p.theme or "default"
-    if th ~= M.current then
-      pcall(M[th])
-      M.current = th
-    end
-    api.nvim_win_set_option(p.win, 'winhighlight', M.winhighlight)
-  end
-end
-
-function M.reset(p)
-  if p.winopts and not p.winopts.winhighlight then
     pcall(M[p.theme or "default"])
+    api.nvim_win_set_option(p.win, 'winhighlight', M.winhighlight)
   end
 end
 

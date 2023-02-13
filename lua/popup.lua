@@ -85,7 +85,7 @@ end
 local function call(...)
   local ok, res = pcall(...)
   if not ok then
-    print("vim.ui.popup: " .. res)
+    api.nvim_echo({{"vim.ui.popup:", "Error"}, {" " .. res, "WarningMsg"}}, true, {})
     return false
   end
   return res or true
@@ -452,7 +452,6 @@ local function open_popup_win(p)
     else
       p.win = open_win(p.buf, p.enter and not p.bfn, do_wincfg(p))
       p._.blend = win_get_option(p.win, "winblend")
-      themes.apply(p)
     end
     -- set window options
     for opt, val in pairs(p.winopts) do
@@ -545,9 +544,14 @@ function Queue:proceed(p)
         self(item.items[i], 1)
       end
       self:proceed(p)
+    elseif not next(item) then -- empty item?
+      self:proceed(p)
     elseif not self.waiting then
-      local method, args = item[1], item[2] and unpack(item[2])
-      Popup[method](p, args)
+      if item[2] then
+        Popup[item[1]](p, unpack(item[2]))
+      else
+        Popup[item[1]](p)
+      end
       self:proceed(p)
     else
       self(item, 1) -- couldn't process item, put it back
@@ -632,7 +636,7 @@ local mt = {
       end
     elseif Queue[method] then
       return function(p, ...)
-        Queue[method](p.queue, ...)
+        call(Queue[method], p.queue, ...)
         Queue.proceed(p.queue, p)
         return p
       end
@@ -769,7 +773,7 @@ function Popup:hide_now()
 end
 
 --- Show popup. This is the safe function to run to ensure a popup is correctly
---- displayed.
+--- displayed. It will reset blend level and theme (highlight groups).
 function Popup:show(seconds)
   if not buf_is_valid(self.buf or -1) then
     self:destroy()
@@ -780,6 +784,10 @@ function Popup:show(seconds)
   end
   on_show_autocommands(self)
   open_popup_win(self)
+  -- reapply highlight groups
+  themes.apply(self)
+  -- reset blend level
+  win_set_option(self.win, "winblend", self._.blend)
   if has_method(self, "on_show") then
     self:on_show()
   end
@@ -797,7 +805,6 @@ function Popup:hide(seconds)
     end
     win_close(self.win, true)
   end
-  themes.reset(self)
   pcall(api.nvim_del_augroup_by_id, self._.aug)
   if self.noqueue and seconds then
     defer_fn(function() self:show() end, seconds * 1000)
@@ -805,10 +812,11 @@ function Popup:hide(seconds)
 end
 
 --- Redraw the popup, keeping its config unchanged. Cheaper than Popup.show.
+--- It doesn't open a new window, it doesn't reset highlight or blend level.
 function Popup:redraw()
   if not self.has_set_buf and self:is_visible() then
     reconfigure(self.win, do_wincfg(self))
-  else
+  elseif self:is_visible() then
     self:show()
   end
 end
@@ -841,14 +849,16 @@ end
 --- Show the popup at the center of the screen.
 ---@param opts table
 function Popup:notification_center(seconds, opts)
-  merge(self, opts).pos = Pos.EDITOR_CENTER
+  local pos = opts and opts.pos or Pos.EDITOR_CENTER
+  merge(self, opts).pos = pos
   if self.noqueue then self:show(seconds) end
 end
 
 --- Show the popup at the top right corner of the screen.
 ---@param opts table
 function Popup:notification(seconds, opts)
-  merge(self, opts).pos = Pos.EDITOR_TOPRIGHT
+  local pos = opts and opts.pos or Pos.EDITOR_TOPRIGHT
+  merge(self, opts).pos = pos
   if self.noqueue then self:show(seconds) end
 end
 
@@ -909,8 +919,8 @@ function Popup:fade(for_seconds, endblend)
         end
       end
       if delay >= steps * steplen then
-        themes.reset(self)
         self.queue.waiting = false
+        self.queue:proceed(self)
       end
     end, delay)
   end
