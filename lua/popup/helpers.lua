@@ -97,6 +97,8 @@ function H.prepare_buffer(p)
   if p.has_set_buf then
     -- set by Popup.set_buffer, cleared in open_popup_win
     p.buf = p.has_set_buf
+    -- must be sure that there is no function to generate buffer
+    p.bfn = nil
   elseif p.bfn then
     -- get buffer (or its lines) from result of function
     local buf, opts = p.bfn(p)

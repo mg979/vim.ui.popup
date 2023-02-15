@@ -105,43 +105,44 @@ function Popup:redraw()
 end
 
 --- Change configuration for the popup.
+--- `opts.buf` can be a table with lines, or a buffer number.
 ---@param opts table
 function Popup:configure(opts)
-  -- hidden, we cannot reconfigure only the window
-  if not self:is_visible() then
+  if not opts then
+    -- reconfigure the window, just in case
+    reconfigure(self.win, do_wincfg(self))
+  elseif opts.buf and opts.buf ~= self.buf then
+    -- update buffer options, potentially deleting old ones
+    self.bufopts = opts.bufopts
+    -- set a new buffer for the popup
+    if type(opts.buf) == "number" then
+      self.has_set_buf = opts.buf
+    else
+      self.has_set_buf = helpers.create_buf(opts.buf, self.bufopts)
+    end
+    helpers.configure_popup(helpers.merge(self, opts))
+  elseif not self:is_visible() then
+    -- hidden, we cannot reconfigure only the window
     helpers.configure_popup(helpers.merge(self, opts))
     return
-  end
-  -- check if we only want to reconfigure the window, or the whole object
-  local full = false
-  if opts.wincfg then
-    for _, v in pairs(opts) do
-      if v ~= opts.wincfg then
-        full = true
-        break
+  else
+    if opts.wincfg then
+      -- if there is some other key, we cannot reconfigure only the window
+      for k in pairs(opts) do
+        if k ~= 'wincfg' then
+          helpers.configure_popup(helpers.merge(self, opts))
+          return
+        end
       end
     end
-  end
-  if not full then
     reconfigure(self.win, do_wincfg(helpers.merge(self, opts)))
-  else
-    helpers.configure_popup(helpers.merge(self, opts))
   end
-end
-
---- Show the popup at the center of the screen.
----@param opts table
-function Popup:notification_center(seconds, opts)
-  local pos = opts and opts.pos or Pos.EDITOR_CENTER
-  helpers.merge(self, opts).pos = pos
-  if self.noqueue then self:show(seconds) end
 end
 
 --- Show the popup at the top right corner of the screen.
 ---@param opts table
-function Popup:notification(seconds, opts)
-  local pos = opts and opts.pos or Pos.EDITOR_TOPRIGHT
-  helpers.merge(self, opts).pos = pos
+function Popup:notification(seconds)
+  self.pos = Pos.EDITOR_TOPRIGHT
   if self.noqueue then self:show(seconds) end
 end
 
@@ -226,23 +227,6 @@ function Popup:debug(key)
   else
     print(vim.inspect(self))
   end
-end
-
---- Set buffer for popup.
---- `buf` can be a table with lines, or a buffer number.
----@param buf number|table|nil
----@param opts table|nil
-function Popup:set_buffer(buf, opts)
-  if type(buf) == "number" then
-    self.has_set_buf = buf
-    self.bfn = nil
-  elseif type(buf) == "function" then
-    self.bfn = buf
-  else
-    self.has_set_buf = helpers.create_buf(buf or {}, opts)
-  end
-  self.bufopts = opts
-  helpers.configure_popup(self)
 end
 
 -- Dummy function, in case the method is called with the 'noqueue' option.

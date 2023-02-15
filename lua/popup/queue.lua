@@ -80,13 +80,8 @@ function Queue:configure(opts)
   self({ "configure", { opts } })
 end
 
-function Queue:notification(seconds, opts)
-  self({ "notification", { seconds, opts } })
-  self:show(seconds)
-end
-
-function Queue:notification_center(seconds, opts)
-  self({ "notification_center", { seconds, opts } })
+function Queue:notification(seconds)
+  self({ "notification" })
   self:show(seconds)
 end
 
@@ -104,10 +99,6 @@ end
 
 function Queue:redraw()
   self({ "redraw" })
-end
-
-function Queue:set_buffer(buf, opts)
-  self({ "set_buffer", { buf, opts } })
 end
 
 return Queue
