@@ -79,7 +79,6 @@ local Popup = require("popup.popup")
 -- 1. the looked up method must exist in either Popup or Queue
 -- 2. non-queuable methods are returned right away
 -- 3. queuable methods are added to the queue
--- TODO: queue also unkown method by creating a Queue method on the fly
 local mt = {
   __index = function(p, method)
     if not Popup[method] and not Queue[method] then

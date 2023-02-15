@@ -11,6 +11,10 @@ local win_get_option = api.nvim_win_get_option
 local win_set_option = api.nvim_win_set_option
 local do_wincfg = require("popup.wincfg")
 
+--------------------------------------------------------------------------------
+-- Local functions
+--------------------------------------------------------------------------------
+
 local function setlines(buf, lines)
   lines = type(lines) == "string" and vim.split(lines, "\n", { trimempty = true }) or lines
   return vim.api.nvim_buf_set_lines(buf, 0, -1, true, lines)
@@ -29,8 +33,17 @@ local function set_bufopts(bnr, bo) -- {{{1
   end
 end
 
+--------------------------------------------------------------------------------
+-- Module
+--------------------------------------------------------------------------------
+
 local H = {}
 
+--- Merge two tables in place, the second into the first one.
+---@param t1 table
+---@param t2 table
+---@param keep bool: whether existing values from t1 should be preserved.
+---@return table
 function H.merge(t1, t2, keep)
   if t2 then
     t1 = t1 or {}
@@ -49,6 +62,11 @@ function H.merge(t1, t2, keep)
   return t1
 end
 
+--- Do a protected call and print any error message, before returning results.
+--- Return false if there was an error, true if the called function returned
+--- nothing, or its return value.
+---@vararg any
+---@return bool|any
 function H.call(...)
   local ok, res = pcall(...)
   if not ok then
@@ -58,6 +76,10 @@ function H.call(...)
   return res or true
 end
 
+--- Create buffer and set its options from optional table.
+---@param lines table
+---@param opts table
+---@return number
 function H.create_buf(lines, opts)
   local bnr = api.nvim_create_buf(false, true)
   setlines(bnr, lines)
@@ -66,8 +88,10 @@ function H.create_buf(lines, opts)
 end
 
 -------------------------------------------------------------------------------
--- Popup generation, local popup functions
+-- Popup generation, helpers
 -------------------------------------------------------------------------------
+-- These are functions that require a popup as argument, but are not popup
+-- methods, so they can't be accessed like Popup:fn().
 
 function H.prepare_buffer(p)
   if p.has_set_buf then
