@@ -7,10 +7,10 @@
 -------------------------------------------------------------------------------
 
 -- vim.ui.popup will be replaced with the full implementation in popup module
--- this is for lazy loading, also don't load if already defined
+-- this is for lazy loading, also doesn't load if already defined
 if not vim.ui.popup then
   vim.ui.popup = setmetatable({}, {
-    __index = function(t, key)
+    __index = function(_, key)
       return require("popup")[key]
     end,
   })
