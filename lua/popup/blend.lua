@@ -110,11 +110,10 @@ local function _blend_to_bg(alpha, s, d, foreground)
   local r, g, b = s.r, s.g, s.b
   local R, G, B = d.r, d.g, d.b
   -- we blend src, by changing luminosity to get closer to dst
-  local dst_lum = floor((R + G + B) / 3)
   local a = alpha * 0.01
-  r = r - floor((r - dst_lum) * a)
-  g = g - floor((g - dst_lum) * a)
-  b = b - floor((b - dst_lum) * a)
+  r = r - floor((r - R) * a)
+  g = g - floor((g - G) * a)
+  b = b - floor((b - B) * a)
   -- cache the result
   BLEND[si][di][alpha] = string.format(XFMT, r, g, b)
   return BLEND[si][di][alpha]
