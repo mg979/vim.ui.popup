@@ -1,21 +1,17 @@
 --------------------------------------------------------------------------------
--- Description: Popup themes
--- File:        themes.lua
--- Author:      Gianmaria Bajo <mg1979.git@gmail.com>
--- License:     MIT
--- Created:     Sun Feb 12 15:04:40 2023
+-- Popup themes
 --------------------------------------------------------------------------------
 
 local api = vim.api
-local win_set_hl = api.nvim_win_set_hl_ns
 local hi = api.nvim_set_hl
-local u = require("popup.util")
 
 local M = { winhighlight = "" }
 
+M.aug = api.nvim_create_augroup("PopupHlts", { clear = true })
+
 -- Reset on colorscheme change.
 api.nvim_create_autocmd("Colorscheme", {
-  group = u.aug,
+  group = M.aug,
   callback = function(_) M.default() end,
 })
 

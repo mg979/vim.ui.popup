@@ -1,15 +1,10 @@
 --------------------------------------------------------------------------------
--- Description: Helpers for window blending
--- File:        blend.lua
--- Author:      Gianmaria Bajo <mg1979.git@gmail.com>
--- License:     MIT
--- Created:     Sun Feb 12 07:05:33 2023
+-- Helpers for window blending
 --------------------------------------------------------------------------------
 
 local api = vim.api
-local fn = vim.fn
 local floor = math.floor
-local u = require("popup.util")
+local themes = require("popup.themes")
 
 -- constants for rgb conversion
 local P4 = 65536 -- math.pow(16, 4)
@@ -156,7 +151,7 @@ end
 
 -- Reset highlight tables on colorscheme change.
 api.nvim_create_autocmd("Colorscheme", {
-  group = u.aug,
+  group = themes.aug,
   callback = clear_caches,
 })
 
