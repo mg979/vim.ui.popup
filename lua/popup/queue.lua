@@ -93,6 +93,10 @@ function Queue:fade(for_seconds, endblend)
   self({ "fade", { for_seconds, endblend } })
 end
 
+function Queue:move(direction, cells, animate)
+  self({ "move", { direction, cells, animate } })
+end
+
 function Queue:wait(seconds)
   self({ wait = ms(seconds or 1) })
 end

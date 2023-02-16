@@ -221,6 +221,90 @@ function Popup:fade(for_seconds, endblend)
   end
 end
 
+--- Make the popup positioning custom: the window will have to be reconfigured
+--- manually.
+---@param relative string
+function Popup:custom(relative)
+  self.pos = Pos.CUSTOM
+  local cfg = api.nvim_win_get_config(self.win)
+  cfg.relative = relative or "editor"
+  cfg.win = cfg.relative == "win" and cfg.win or nil
+  local pos = vim.fn.screenpos(0, vim.fn.line('.'), vim.fn.col('.'))
+  cfg.row = math.min(pos.row, vim.o.lines - cfg.height - vim.o.cmdheight)
+  cfg.col = math.min(pos.col, vim.o.columns - cfg.width)
+  reconfigure(self.win, cfg)
+  for k, v in pairs(cfg) do
+    self.wincfg[k] = v
+  end
+end
+
+--- Move a popup on the screen. `animate` is 1 if movement must be animated,
+--- 2 if also a movement trail must be displayed.
+---@param dir string: "up", "down", "left" or "right"
+---@param cells number|nil
+---@param animate number|nil
+function Popup:move(dir, cells, animate)
+  if not dir or not self:is_visible() then
+    return
+  end
+  animate, cells = animate or 0, cells or 1
+  local anim, trail = animate > 0, animate == 2
+
+  self._.pause_autocmd = true
+
+  -- convert the position to custom, relative to edtor
+  if self.pos ~= Pos.CUSTOM then self:custom() end
+
+  local lines, columns, cmdheight = vim.o.lines, vim.o.columns, vim.o.cmdheight
+
+  local function _move(step)
+    local cfg = api.nvim_win_get_config(self.win)
+    if trail then
+      -- FIXME or REMOVEME: doesn't look good
+      vim.ui.popup.new({
+        copy = self,
+        winopts = { winblend = 75 },
+        wincfg = H.merge({ zindex = 1 }, cfg, true),
+      }):show(1)
+    end
+    local col, row = cfg.col[false], cfg.row[false]
+    if dir == "down" and (row + cfg.height) < lines - cmdheight then
+      row = row + step
+    elseif dir == "up" and row > 0 then
+      row = row - step
+    elseif dir == "left" and col > 0 then
+      col = col - step
+    elseif dir == "right" and (col + cfg.width) < columns then
+      col = col + step
+    end
+    cfg.col[false] = col
+    cfg.row[false] = row
+    reconfigure(self.win, cfg)
+  end
+
+  if anim then
+    self.queue.waiting = true
+    local timer = vim.loop.new_timer()
+    local i = 0
+    timer:start(0, 20, vim.schedule_wrap(function()
+      i = i + 1
+      if not self:is_visible() then
+        self:hide_now()
+        timer:stop()
+      elseif i <= cells then
+        _move(1)
+      else
+        self._.pause_autocmd = false
+        self.queue.waiting = false
+        self.queue:proceed(self)
+        timer:stop()
+      end
+    end))
+  else
+    _move(cells)
+  end
+end
+
 --- Print debug information about a popup value.
 ---@param key string|nil
 function Popup:debug(key)
