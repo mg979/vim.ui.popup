@@ -233,24 +233,17 @@ function Popup:custom(relative)
   cfg.row = math.min(pos.row, vim.o.lines - cfg.height - vim.o.cmdheight)
   cfg.col = math.min(pos.col, vim.o.columns - cfg.width)
   reconfigure(self.win, cfg)
-  for k, v in pairs(cfg) do
-    self.wincfg[k] = v
-  end
 end
 
---- Move a popup on the screen. `animate` is 1 if movement must be animated,
---- 2 if also a movement trail must be displayed.
+--- Move a popup on the screen.
 ---@param dir string: "up", "down", "left" or "right"
 ---@param cells number|nil
----@param animate number|nil
+---@param animate bool|nil
 function Popup:move(dir, cells, animate)
   if not dir or not self:is_visible() then
     return
   end
-  animate, cells = animate or 0, cells or 1
-  local anim, trail = animate > 0, animate == 2
-
-  self._.pause_autocmd = true
+  cells = cells or 1
 
   -- convert the position to custom, relative to edtor
   if self.pos ~= Pos.CUSTOM then self:custom() end
@@ -259,14 +252,6 @@ function Popup:move(dir, cells, animate)
 
   local function _move(step)
     local cfg = api.nvim_win_get_config(self.win)
-    if trail then
-      -- FIXME or REMOVEME: doesn't look good
-      vim.ui.popup.new({
-        copy = self,
-        winopts = { winblend = 75 },
-        wincfg = H.merge({ zindex = 1 }, cfg, true),
-      }):show(1)
-    end
     local col, row = cfg.col[false], cfg.row[false]
     if dir == "down" and (row + cfg.height) < lines - cmdheight then
       row = row + step
@@ -282,7 +267,7 @@ function Popup:move(dir, cells, animate)
     reconfigure(self.win, cfg)
   end
 
-  if anim then
+  if animate then
     self.queue.waiting = true
     local timer = vim.loop.new_timer()
     local i = 0
@@ -294,7 +279,6 @@ function Popup:move(dir, cells, animate)
       elseif i <= cells then
         _move(1)
       else
-        self._.pause_autocmd = false
         self.queue.waiting = false
         self.queue:proceed(self)
         timer:stop()
