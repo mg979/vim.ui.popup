@@ -13,6 +13,7 @@ local themes = require("popup.themes")
 local helpers = require("popup.helpers")
 local do_wincfg = require("popup.wincfg")
 local ms = function(s) return s * 1000 end
+local H = require("popup.helpers")
 local Pos = vim.ui.popup.pos
 
 local function has_method(p, name)
@@ -68,7 +69,7 @@ function Popup:show(seconds)
   autocmd.on_show(self)
   helpers.open_popup_win(self)
   -- reapply highlight groups
-  themes.apply(self)
+  H.call(themes.apply, self)
   -- reset blend level
   win_set_option(self.win, "winblend", self._.blend)
   if has_method(self, "on_show") then
@@ -89,6 +90,7 @@ function Popup:hide(seconds)
     win_close(self.win, true)
   end
   pcall(api.nvim_del_augroup_by_id, self._.aug)
+  -- TODO: self._ should be cleared, but it currently breaks too much stuff
   if self.noqueue and seconds then
     defer_fn(function() self:show() end, seconds * 1000)
   end

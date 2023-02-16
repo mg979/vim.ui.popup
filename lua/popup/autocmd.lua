@@ -59,8 +59,10 @@ local function on_show(p)
     if next(hide_on) then
       create(p, hide_on, {
         callback = function(_)
-          p:hide_now()
-          return true -- to delete the autocommand
+          if not p._.pause_autocmd then
+            p:hide_now()
+            return true -- to delete the autocommand
+          end
         end,
       })
     end

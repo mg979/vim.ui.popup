@@ -93,7 +93,7 @@ end
 -- These are functions that require a popup as argument, but are not popup
 -- methods, so they can't be accessed like Popup:fn().
 
-function H.prepare_buffer(p)
+local function prepare_buffer(p)
   if p.has_set_buf then
     -- set by Popup.set_buffer, cleared in open_popup_win
     p.buf = p.has_set_buf
@@ -150,7 +150,7 @@ function H.open_popup_win(p)
       end
     else
       p.win = api.nvim_open_win(p.buf, p.enter and not p.bfn, do_wincfg(p))
-      p._.blend = win_get_option(p.win, "winblend")
+      p._.blend = p.winopts.winblend or win_get_option(p.win, "winblend")
     end
     -- set window options
     for opt, val in pairs(p.winopts) do
@@ -158,12 +158,12 @@ function H.open_popup_win(p)
     end
   end
 
-  local ok, err = pcall(_open)
+  local ok = H.call(_open)
 
   -- clear variable set by Popup.set_buffer
   p.has_set_buf = nil
   vim.o.lazyredraw = oldlazy
-  return ok, err
+  return ok
 end
 
 --- Ensure the popup object has a valid buffer. Return success.
@@ -171,7 +171,7 @@ end
 ---@return bool
 function H.configure_popup(p)
   -- ensure popup has a valid buffer
-  return H.call(H.prepare_buffer, p)
+  return H.call(prepare_buffer, p)
 end
 
 return H

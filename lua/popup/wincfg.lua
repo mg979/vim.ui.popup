@@ -144,7 +144,7 @@ end
 ---@return table
 local function do_wincfg(p)
   if p.pos == Pos.CUSTOM then
-    return p.wincfg
+    return api.nvim_win_get_config(p.win)
   end
   local o = p.wincfg
   local editor = p.pos >= Pos.EDITOR_CENTER

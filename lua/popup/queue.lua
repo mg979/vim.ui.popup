@@ -21,7 +21,7 @@ local Popup = require("popup.popup")
 local Queue = {}
 
 function Queue:proceed(p)
-  if not self.stop and #self.items > 0 then
+  if #self.items > 0 then
     local item = table.remove(self.items, 1)
     if not self.waiting and item.wait then
       self.waiting = true
@@ -52,7 +52,7 @@ function Queue:proceed(p)
 end
 
 function Queue:clear_queue()
-  self.stop = true
+  self.waiting = false
   self.items = {}
 end
 
