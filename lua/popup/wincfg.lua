@@ -143,23 +143,23 @@ end
 ---@param p table
 ---@return table
 local function do_wincfg(p)
+  if p.pos == Pos.CUSTOM then
+    return p.wincfg
+  end
   local o = p.wincfg
   local editor = p.pos >= Pos.EDITOR_CENTER
   local cursor = p.pos == Pos.AT_CURSOR
-  local custom = p.pos == Pos.CUSTOM
   local win = not editor and not cursor and p.prevwin
   local lines = getlines(p.buf)
   local width, height = calc_dimensions(p, lines)
   p.wincfg = {
-    relative = custom and o.relative
-            or cursor and "cursor"
-            or editor and "editor" or "win",
+    relative = cursor and "cursor" or editor and "editor" or "win",
     win = win or nil,
     anchor = o.anchor or "NW",
     width = width,
     height = height,
-    col = custom and o.col or get_column(p, width),
-    row = custom and o.row or get_row(p, height),
+    col = get_column(p, width),
+    row = get_row(p, height),
     focusable = p.enter or (o.focusable == true and true or false),
     bufpos = o.bufpos,
     zindex = o.zindex,

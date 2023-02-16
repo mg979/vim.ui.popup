@@ -139,30 +139,46 @@ end
 -------------------------------------------------------------------------------
 
 --- Create a copy of a previous popup, optionally with some different options
---- provided in the extra argument.
----@param p table
----@param opts table
+--- provided in the second argument.
+---@param src table
+---@param dst table
 ---@return table
-local function copy(p, opts)
-  p = H.merge(opts or {}, p, true)
-  p.win = -1
-  if p.wincfg then
-    -- only keep values that can be valid for different positions
-    local keep = p.pos == Pos.CUSTOM
-    local prev = p.wincfg
-    p.wincfg = {
-      anchor = prev.anchor,
-      focusable = prev.focusable,
-      style = prev.style,
-      border = prev.border,
-      noautocmd = prev.noautocmd,
-      width = keep and prev.width,
-      height = keep and prev.height,
-      col = keep and prev.col,
-      row = keep and prev.row,
-    }
+local function copy(src, dst)
+  dst = H.merge(dst or {}, src, true)
+  -- clear private values
+  dst._ = {}
+  -- must have its own window and queue
+  dst.win, dst.queue = -1, setmetatable({ items = {} }, qmt)
+  -- make a copy of both winopts and bufopts
+  dst.winopts = dst.winopts or {}
+  for k, v in pairs(src.winopts or {}) do
+    dst.winopts[k] = v
   end
-  return p
+  dst.bufopts = dst.bufopts or {}
+  for k, v in pairs(src.bufopts or {}) do
+    dst.bufopts[k] = v
+  end
+  if src.wincfg then
+    if dst.pos == Pos.CUSTOM then
+      -- full copy, but keep new values
+      for k, v in pairs(src.wincfg) do
+        if not dst.wincfg[k] then
+          dst.wincfg[k] = v
+        end
+      end
+    else
+      -- only keep values that can be valid for different positions
+      local prev = dst.wincfg
+      dst.wincfg = {
+        anchor = prev.anchor,
+        focusable = prev.focusable,
+        style = prev.style,
+        border = prev.border,
+        noautocmd = prev.noautocmd,
+      }
+    end
+  end
+  return dst
 end
 
 --- Create a new popup object.
@@ -172,7 +188,7 @@ function popup.new(opts)
   local p = opts or {}
 
   if p.copy then
-    p = copy(p.copy, opts)
+    p = copy(p.copy, p)
     p.copy = nil
   end
 
