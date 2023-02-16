@@ -51,6 +51,7 @@ local function on_show(p)
     end
 
     local hide_on = p.hide_on
+      or p.drag and {}
       or (p.enter and { "WinLeave" })
       or (p.follow and { "CursorMovedI", "BufLeave" })
       or { "CursorMoved", "CursorMovedI", "BufLeave" }

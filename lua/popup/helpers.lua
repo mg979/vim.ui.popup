@@ -119,6 +119,10 @@ local function prepare_buffer(p)
   if not buf_is_valid(p.buf or -1) then
     error("Popup needs a valid buffer.")
   end
+
+  if p.drag then
+    require("popup.drag")(p)
+  end
 end
 
 --- To avoid flicker, set lazyredraw, but restore old value even if there were

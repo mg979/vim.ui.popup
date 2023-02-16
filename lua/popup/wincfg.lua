@@ -160,7 +160,7 @@ local function do_wincfg(p)
     height = height,
     col = get_column(p, width),
     row = get_row(p, height),
-    focusable = p.enter or (o.focusable == true and true or false),
+    focusable = p.enter or p.drag or (o.focusable == true and true or false),
     bufpos = o.bufpos,
     zindex = o.zindex,
     style = o.style or "minimal",
