@@ -64,10 +64,14 @@ function Popup:show(seconds)
     error("Popup doesn't have a valid buffer.")
   end
   if not helpers.configure_popup(self) then
+    self:destroy()
     return
   end
   autocmd.on_show(self)
-  helpers.open_popup_win(self)
+  if not helpers.open_popup_win(self) then
+    self:destroy()
+    return
+  end
   -- reapply highlight groups
   H.call(themes.apply, self)
   -- reset blend level
