@@ -238,12 +238,20 @@ end
 --- Move a popup on the screen.
 ---@param dir string: "up", "down", "left" or "right"
 ---@param cells number|nil
----@param animate bool|nil
-function Popup:move(dir, cells, animate)
+function Popup:move(dir, cells)
   if not dir or not self:is_visible() then
     return
   end
-  cells = cells or 1
+  local o = type(dir) == 'table' and {
+    animate = dir.animate ~= false,
+    dir = dir.dir or dir[1] or "right",
+    cells = dir.cells or 10,
+    speed = dir.speed or 0.1,
+  } or {
+    dir = dir,
+    cells = cells or 1,
+    speed = 20,
+  }
 
   -- convert the position to custom, relative to edtor
   if self.pos ~= Pos.CUSTOM then self:custom() end
@@ -253,13 +261,13 @@ function Popup:move(dir, cells, animate)
   local function _move(step)
     local cfg = api.nvim_win_get_config(self.win)
     local col, row = cfg.col[false], cfg.row[false]
-    if dir == "down" and (row + cfg.height) < lines - cmdheight then
+    if o.dir == "down" and (row + cfg.height) < lines - cmdheight then
       row = row + step
-    elseif dir == "up" and row > 0 then
+    elseif o.dir == "up" and row > 0 then
       row = row - step
-    elseif dir == "left" and col > 0 then
+    elseif o.dir == "left" and col > 0 then
       col = col - step
-    elseif dir == "right" and (col + cfg.width) < columns then
+    elseif o.dir == "right" and (col + cfg.width) < columns then
       col = col + step
     end
     cfg.col[false] = col
@@ -267,16 +275,16 @@ function Popup:move(dir, cells, animate)
     reconfigure(self.win, cfg)
   end
 
-  if animate then
+  if o.animate then
     self.queue.waiting = true
     local timer = vim.loop.new_timer()
     local i = 0
-    timer:start(0, 20, vim.schedule_wrap(function()
+    timer:start(0, o.speed, vim.schedule_wrap(function()
       i = i + 1
       if not self:is_visible() then
         self:hide_now()
         timer:stop()
-      elseif i <= cells then
+      elseif i <= o.cells then
         _move(1)
       else
         self.queue.waiting = false
@@ -285,7 +293,7 @@ function Popup:move(dir, cells, animate)
       end
     end))
   else
-    _move(cells)
+    _move(o.cells)
   end
 end
 
