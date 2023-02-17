@@ -8,10 +8,12 @@ local reconfigure = api.nvim_win_set_config
 local win_is_valid = api.nvim_win_is_valid
 local buf_is_valid = api.nvim_buf_is_valid
 local win_set_option = api.nvim_win_set_option
+local win_get_config = api.nvim_win_get_config
 local defer_fn = vim.defer_fn
 local themes = require("popup.themes")
 local helpers = require("popup.helpers")
-local do_wincfg = require("popup.wincfg")
+local do_wincfg = require("popup.wincfg").do_wincfg
+local update_wincfg = require("popup.wincfg").update_wincfg
 local ms = function(s) return s * 1000 end
 local H = require("popup.helpers")
 local Pos = vim.ui.popup.pos
@@ -91,6 +93,7 @@ function Popup:hide(seconds)
     if has_method(self, "on_hide") and self:on_hide() then
       return
     end
+    update_wincfg(self)
     win_close(self.win, true)
   end
   pcall(api.nvim_del_augroup_by_id, self._.aug)
@@ -130,7 +133,6 @@ function Popup:configure(opts)
   elseif not self:is_visible() then
     -- hidden, we cannot reconfigure only the window
     helpers.configure_popup(helpers.merge(self, opts))
-    return
   else
     if opts.wincfg then
       -- if there is some other key, we cannot reconfigure only the window
@@ -225,18 +227,21 @@ function Popup:fade(for_seconds, endblend)
   end
 end
 
---- Make the popup positioning custom: the window will have to be reconfigured
---- manually.
+--- Make the popup positioning custom: from now on, the window will have to be
+--- reconfigured manually.
 ---@param relative string
 function Popup:custom(relative)
   self.pos = Pos.CUSTOM
-  local cfg = api.nvim_win_get_config(self.win)
+  local cfg = self:is_visible() and api.nvim_win_get_config(self.win) or self.wincfg
   cfg.relative = relative or "editor"
   cfg.win = cfg.relative == "win" and cfg.win or nil
-  local pos = vim.fn.screenpos(0, vim.fn.line('.'), vim.fn.col('.'))
+  local pos = vim.fn.screenpos(0, vim.fn.line("."), vim.fn.col("."))
   cfg.row = math.min(pos.row, vim.o.lines - cfg.height - vim.o.cmdheight)
   cfg.col = math.min(pos.col, vim.o.columns - cfg.width)
-  reconfigure(self.win, cfg)
+  if self:is_visible() then
+    reconfigure(self.win, cfg)
+  end
+  update_wincfg(self)
 end
 
 --- Move a popup on the screen.
@@ -258,12 +263,12 @@ function Popup:move(dir, cells)
   }
 
   -- convert the position to custom, relative to edtor
-  if self.pos ~= Pos.CUSTOM then self:custom() end
+  if self.pos ~= Pos.CUSTOM then Popup.custom(self) end
 
   local lines, columns, cmdheight = vim.o.lines, vim.o.columns, vim.o.cmdheight
 
   local function _move(step)
-    local cfg = api.nvim_win_get_config(self.win)
+    local cfg = win_get_config(self.win)
     local col, row = cfg.col[false], cfg.row[false]
     if o.dir == "down" and (row + cfg.height) < lines - cmdheight then
       row = row + step

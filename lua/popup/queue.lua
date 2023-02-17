@@ -105,4 +105,8 @@ function Queue:redraw()
   self({ "redraw" })
 end
 
+function Queue:custom(relative)
+  self({ "custom", { relative } })
+end
+
 return Queue

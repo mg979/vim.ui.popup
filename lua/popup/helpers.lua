@@ -9,7 +9,7 @@ local win_is_valid = api.nvim_win_is_valid
 local buf_set_option = api.nvim_buf_set_option
 local win_get_option = api.nvim_win_get_option
 local win_set_option = api.nvim_win_set_option
-local do_wincfg = require("popup.wincfg")
+local do_wincfg = require("popup.wincfg").do_wincfg
 
 --------------------------------------------------------------------------------
 -- Local functions

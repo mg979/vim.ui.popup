@@ -6,6 +6,7 @@ local api = vim.api
 local Pos = vim.ui.popup.pos
 local strwidth = vim.fn.strdisplaywidth
 local buf_get_option = api.nvim_buf_get_option
+local win_is_valid = api.nvim_win_is_valid
 
 --  We keep the tabline visible.
 local function tabline_row()
@@ -139,12 +140,25 @@ local function calc_dimensions(p, lines)
   return w, calc_height(p, lines, w)
 end
 
+--- Update popup.wincfg by reading directly from window configuration, but
+--- adjust some values because of different defaults, and check problematic
+--- values, in case the config couldn't be read.
+---@param p table
+---@return table
+local function update_wincfg(p)
+  local o = win_is_valid(p.win or -1) and api.nvim_win_get_config(p.win) or p.wincfg
+  o.style = o.style or "minimal"
+  o.win = o.relative == "win" and o.win or nil
+  p.wincfg = o
+  return o
+end
+
 --- Generate the window configuration to pass to nvim_open_win().
 ---@param p table
 ---@return table
 local function do_wincfg(p)
   if p.pos == Pos.CUSTOM then
-    return api.nvim_win_get_config(p.win)
+    return update_wincfg(p)
   end
   local o = p.wincfg
   local editor = p.pos >= Pos.EDITOR_CENTER
@@ -170,4 +184,7 @@ local function do_wincfg(p)
   return p.wincfg
 end
 
-return do_wincfg
+return {
+  do_wincfg = do_wincfg,
+  update_wincfg = update_wincfg,
+}
