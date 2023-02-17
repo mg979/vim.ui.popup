@@ -11,7 +11,6 @@ local win_set_option = api.nvim_win_set_option
 local win_get_config = api.nvim_win_get_config
 local defer_fn = vim.defer_fn
 local themes = require("popup.themes")
-local helpers = require("popup.helpers")
 local do_wincfg = require("popup.wincfg").do_wincfg
 local update_wincfg = require("popup.wincfg").update_wincfg
 local ms = function(s) return s * 1000 end
@@ -65,12 +64,12 @@ function Popup:show(seconds)
     self:destroy()
     error("Popup doesn't have a valid buffer.")
   end
-  if not helpers.configure_popup(self) then
+  if not H.configure_popup(self) then
     self:destroy()
     return
   end
   autocmd.on_show(self)
-  if not helpers.open_popup_win(self) then
+  if not H.open_popup_win(self) then
     self:destroy()
     return
   end
@@ -109,7 +108,7 @@ function Popup:redraw()
   if not self.has_set_buf and self:is_visible() then
     reconfigure(self.win, do_wincfg(self))
   elseif self:is_visible() then
-    self:show()
+    H.configure_popup(self)
   end
 end
 
@@ -118,8 +117,10 @@ end
 ---@param opts table
 function Popup:configure(opts)
   if not opts then
-    -- reconfigure the window, just in case
-    reconfigure(self.win, do_wincfg(self))
+    if self:is_visible() then
+      -- reconfigure the window, just in case
+      reconfigure(self.win, do_wincfg(self))
+    end
   elseif opts.buf and opts.buf ~= self.buf then
     -- update buffer options, potentially deleting old ones
     self.bufopts = opts.bufopts
@@ -127,23 +128,23 @@ function Popup:configure(opts)
     if type(opts.buf) == "number" then
       self.has_set_buf = opts.buf
     else
-      self.has_set_buf = helpers.create_buf(opts.buf, self.bufopts)
+      self.has_set_buf = H.create_buf(opts.buf, self.bufopts)
     end
-    helpers.configure_popup(helpers.merge(self, opts))
+    H.configure_popup(H.merge(self, opts))
   elseif not self:is_visible() then
     -- hidden, we cannot reconfigure only the window
-    helpers.configure_popup(helpers.merge(self, opts))
+    H.configure_popup(H.merge(self, opts))
   else
     if opts.wincfg then
       -- if there is some other key, we cannot reconfigure only the window
       for k in pairs(opts) do
         if k ~= 'wincfg' then
-          helpers.configure_popup(helpers.merge(self, opts))
+          H.configure_popup(H.merge(self, opts))
           return
         end
       end
     end
-    reconfigure(self.win, do_wincfg(helpers.merge(self, opts)))
+    reconfigure(self.win, do_wincfg(H.merge(self, opts)))
   end
 end
 

@@ -95,7 +95,7 @@ end
 
 local function prepare_buffer(p)
   if p.has_set_buf then
-    -- set by Popup.set_buffer, cleared in open_popup_win
+    -- cleared in update_win
     p.buf = p.has_set_buf
     -- must be sure that there is no function to generate buffer
     p.bfn = nil
@@ -125,6 +125,18 @@ local function prepare_buffer(p)
   end
 end
 
+--- Update window, changing buffer if necessary.
+---@param p table
+function H.update_win(p)
+  if p.has_set_buf then
+    vim.fn.win_execute(p.win, "noautocmd buffer " .. p.buf, true)
+    p.has_set_buf = nil
+  end
+  if next(p.wincfg) then
+    reconfigure(p.win, do_wincfg(p))
+  end
+end
+
 --- To avoid flicker, set lazyredraw, but restore old value even if there were
 --- errors. Also set up closing autocommands, and set buffer local variables.
 --- Return success.
@@ -146,15 +158,11 @@ function H.open_popup_win(p)
     )
     -- if previous window is valid, just reconfigure, otherwise open a new one
     if win_is_valid(p.win or -1) then
-      if p.has_set_buf then
-        vim.fn.win_execute(p.win, "noautocmd buffer " .. p.buf, true)
-      end
-      if next(p.wincfg) then
-        reconfigure(p.win, do_wincfg(p))
-      end
+      H.update_win(p)
     else
       p.win = api.nvim_open_win(p.buf, p.enter and not p.bfn, do_wincfg(p))
       p._.blend = p.winopts.winblend or win_get_option(p.win, "winblend")
+      p.has_set_buf = nil -- this should be cleared anyway
     end
     -- set window options
     for opt, val in pairs(p.winopts) do
@@ -164,8 +172,6 @@ function H.open_popup_win(p)
 
   local ok = H.call(_open)
 
-  -- clear variable set by Popup.set_buffer
-  p.has_set_buf = nil
   vim.o.lazyredraw = oldlazy
   return ok
 end
@@ -175,7 +181,12 @@ end
 ---@return bool
 function H.configure_popup(p)
   -- ensure popup has a valid buffer
-  return H.call(prepare_buffer, p)
+  local ok = H.call(prepare_buffer, p)
+  -- if the window is visible, we update it, why not
+  if ok and win_is_valid(p.win or -1) then
+    H.update_win(p)
+  end
+  return ok
 end
 
 return H
