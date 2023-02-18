@@ -161,7 +161,7 @@ function H.open_popup_win(p)
       H.update_win(p)
     else
       p.win = api.nvim_open_win(p.buf, p.enter and not p.bfn, do_wincfg(p))
-      p._.blend = p.winopts.winblend or win_get_option(p.win, "winblend")
+      p._.blend = p.winopts.winblend or p._.blend or win_get_option(p.win, "winblend")
       p.has_set_buf = nil -- this should be cleared anyway
     end
     -- set window options
