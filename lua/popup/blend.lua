@@ -11,7 +11,7 @@ local P4 = 65536 -- math.pow(16, 4)
 local P2 = 256   -- math.pow(16, 2)
 
 -- Tables with cached highlights/blended colors. They are cleared on color
--- scheme change. vim.ui.popup.reset() clears them too.
+-- scheme change. popup.reset() clears them too.
 --
 -- CACHE is a table with highlight definitions, indexed by group name.
 -- NORMAL is a shorthand for CACHE.Normal.

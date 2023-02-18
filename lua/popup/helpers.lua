@@ -70,7 +70,7 @@ end
 function H.call(...)
   local ok, res = pcall(...)
   if not ok then
-    api.nvim_echo({{"vim.ui.popup:", "Error"}, {" " .. res, "WarningMsg"}}, true, {})
+    api.nvim_echo({{"popup:", "Error"}, {" " .. res, "WarningMsg"}}, true, {})
     return false
   end
   return res or true

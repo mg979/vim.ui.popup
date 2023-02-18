@@ -11,7 +11,7 @@
 -------------------------------------------------------------------------------
 
 vim.cmd([[
-nnoremap c_ :lua vim.ui.popup.panic()<cr>
+nnoremap c_ :lua require("popup").panic()<cr>
 if exists(":LuaReloadAll")
   nnoremap \l :silent update \| LuaReloadAll<cr>
 end
@@ -22,8 +22,8 @@ nnoremap <buffer> <space><space> :<c-u>call search('\n\n\zs---\+')<cr>zt
 nnoremap <buffer> <space><esc>   :<c-u>call search('\n\n\zs---\+', 'b')<cr>zt
 ]])
 
-local popup = vim.ui.popup
-local Pos = popup.pos
+local popup = require("popup")
+local Pos = popup.Pos
 
 --------------------------------------------------------------------------------
 -- Options for popups configuration:
@@ -180,7 +180,7 @@ r:configure {
 -- These popups don't follow the cursor: they will close on CursorMoved.
 -- So don't move the cursor if you want to see the animations.
 --
--- vim.ui.popup.pos is an enum with different predefined positions.
+-- popup.pos is an enum with different predefined positions.
 --
 -- Assuming that gcip uncomments a paragraph, here below you can press @w to
 -- execute a paragraph.

@@ -15,7 +15,7 @@ local do_wincfg = require("popup.wincfg").do_wincfg
 local update_wincfg = require("popup.wincfg").update_wincfg
 local ms = function(s) return s * 1000 end
 local H = require("popup.helpers")
-local Pos = vim.ui.popup.pos
+local Pos = require("popup.wincfg").Pos
 
 local function has_method(p, name)
   return p[name] and type(p[name]) == 'function'

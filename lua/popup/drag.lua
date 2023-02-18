@@ -6,7 +6,7 @@
 local api = vim.api
 local winid = vim.fn.win_getid
 local setmap = vim.keymap.set
-local CUSTOM = vim.ui.popup.pos.CUSTOM
+local CUSTOM = require("popup.wincfg").Pos.CUSTOM
 local min, max = math.min, math.max
 
 --- Mapping for mouse drag release.

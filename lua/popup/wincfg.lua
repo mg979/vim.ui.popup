@@ -3,10 +3,30 @@
 -------------------------------------------------------------------------------
 
 local api = vim.api
-local Pos = vim.ui.popup.pos
 local strwidth = vim.fn.strdisplaywidth
 local buf_get_option = api.nvim_buf_get_option
 local win_is_valid = api.nvim_win_is_valid
+
+-- popup standard positions
+local Pos = {
+  CUSTOM = -1,
+  AT_CURSOR = 0,
+  WIN_TOP = 1,
+  WIN_BOTTOM = 2,
+  EDITOR_CENTER = 3,
+  EDITOR_CENTER_LEFT = 4,
+  EDITOR_CENTER_RIGHT = 5,
+  EDITOR_CENTER_TOP = 6,
+  EDITOR_CENTER_BOTTOM = 7,
+  EDITOR_LEFT_WIDE = 8,
+  EDITOR_RIGHT_WIDE = 9,
+  EDITOR_TOP_WIDE = 10,
+  EDITOR_BOTTOM_WIDE = 11,
+  EDITOR_TOPLEFT = 12,
+  EDITOR_TOPRIGHT = 13,
+  EDITOR_BOTLEFT = 14,
+  EDITOR_BOTRIGHT = 15,
+}
 
 --  We keep the tabline visible.
 local function tabline_row()
@@ -187,4 +207,5 @@ end
 return {
   do_wincfg = do_wincfg,
   update_wincfg = update_wincfg,
+  Pos = Pos,
 }

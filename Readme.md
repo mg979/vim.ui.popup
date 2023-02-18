@@ -1,4 +1,4 @@
-This is a (WIP) module for popup generation inside Neovim.
+This is a (WIP) library for popup generation inside Neovim.
 
 Goals:
 
@@ -31,6 +31,16 @@ Lower priority:
 There is an interactive test file, you can take a look in this repo at:
 
     test.lua
+
+Note: this is just a library you can load with `require("popup")` where you
+want to use it, for example:
+```lua
+local popup = require("popup")
+local p = popup.new {
+  "Good one!",
+  wincfg = { border = "rounded" },
+  }:show():fade():hide(0.2) -- show, fade, hide for 0.2s and show again
+```
 
 Some asciinema takes (there are artifacts):
 

@@ -1,26 +1,4 @@
-vim.ui.popup = {}
-local popup = vim.ui.popup
-
--- popup standard positions -- {{{1
-popup.pos = {
-  CUSTOM = -1,
-  AT_CURSOR = 0,
-  WIN_TOP = 1,
-  WIN_BOTTOM = 2,
-  EDITOR_CENTER = 3,
-  EDITOR_CENTER_LEFT = 4,
-  EDITOR_CENTER_RIGHT = 5,
-  EDITOR_CENTER_TOP = 6,
-  EDITOR_CENTER_BOTTOM = 7,
-  EDITOR_LEFT_WIDE = 8,
-  EDITOR_RIGHT_WIDE = 9,
-  EDITOR_TOP_WIDE = 10,
-  EDITOR_BOTTOM_WIDE = 11,
-  EDITOR_TOPLEFT = 12,
-  EDITOR_TOPRIGHT = 13,
-  EDITOR_BOTLEFT = 14,
-  EDITOR_BOTRIGHT = 15,
-}
+local popup = { Pos = require("popup.wincfg").Pos }
 
 -- api {{{1
 local api = vim.api
@@ -28,11 +6,10 @@ local curwin = api.nvim_get_current_win
 local win_is_valid = api.nvim_win_is_valid
 local win_close = api.nvim_win_close
 local H = require("popup.helpers")
-
 -- }}}
 
 -- Table for positions
-local Pos = popup.pos
+local Pos = popup.Pos
 
 -- Custom options (options for nvim_open_win go in 'wincfg' value):
 --------------------------------------------------------------------------------
