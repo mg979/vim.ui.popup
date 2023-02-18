@@ -37,6 +37,7 @@ local Pos = popup.Pos
 -- bufbind      nil                   number    bind the popup to a single buffer
 -- noqueue      false                 bool      don't use async queuing
 -- enter        false                 bool      enter popup window after creation
+-- gutter       false                 bool      disabled by default, whatever the style
 -- namespace    "_G"                  string    namespace for popup
 -- theme        "default"             string    popup appearance
 -- bufopts      {}                    table     buffer options: { option = value, ... }

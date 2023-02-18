@@ -125,7 +125,8 @@ local function prepare_buffer(p)
   end
 end
 
---- Update window, changing buffer if necessary.
+--- Update window, changing buffer if necessary. Set the cursor at the top of
+--- the buffer.
 ---@param p table
 function H.update_win(p)
   if p.has_set_buf then
@@ -135,6 +136,7 @@ function H.update_win(p)
   if next(p.wincfg) then
     reconfigure(p.win, do_wincfg(p))
   end
+  api.nvim_win_set_cursor(p.win, { 1, 0 })
 end
 
 --- To avoid flicker, set lazyredraw, but restore old value even if there were
@@ -167,6 +169,11 @@ function H.open_popup_win(p)
     -- set window options
     for opt, val in pairs(p.winopts) do
       win_set_option(p.win, opt, val)
+    end
+    -- turn off gutter by default
+    if not p.gutter then
+      win_set_option(p.win, "number", false)
+      win_set_option(p.win, "signcolumn", "no")
     end
   end
 

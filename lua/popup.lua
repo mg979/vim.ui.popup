@@ -22,6 +22,7 @@ local Pos = popup.Pos
 -- bufbind      nil                   number    bind the popup to a single buffer
 -- noqueue      false                 bool      don't use async queuing
 -- enter        false                 bool      enter popup window after creation
+-- gutter       false                 bool      disabled by default, whatever the style
 -- namespace    "_G"                  string    namespace for popup
 -- theme        "default"             string    popup appearance
 -- bufopts      {}                    table     buffer options: { option = value, ... }
@@ -173,6 +174,9 @@ function popup.new(opts)
   p.queue = setmetatable({ items = {} }, qmt)
 
   p._ = {} -- private attributes
+  p.bufopts = p.bufopts or {}
+  p.winopts = p.winopts or {}
+  p.wincfg = p.wincfg or {}
 
   p.namespace = p.namespace or "_G"
   p.pos = p.pos or Pos.AT_CURSOR

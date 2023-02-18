@@ -107,6 +107,7 @@ end
 function Popup:redraw()
   if not self.has_set_buf and self:is_visible() then
     reconfigure(self.win, do_wincfg(self))
+    api.nvim_win_set_cursor(self.win, { 1, 0 })
   elseif self:is_visible() then
     H.configure_popup(self)
   end
@@ -315,6 +316,13 @@ function Popup:debug(key)
   else
     print(vim.inspect(self))
   end
+end
+
+--- Return the window configuration. If not visible, return a configuration as
+--- it will be generated when the window will be created.
+---@return table
+function Popup:get_wincfg()
+  return self:is_visible() and win_get_config(self.win) or do_wincfg(self)
 end
 
 -- Dummy function, in case the method is called with the 'noqueue' option.
