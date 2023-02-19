@@ -118,15 +118,7 @@ local function prepare_buffer(p)
     -- must be sure that there is no function to generate buffer
     p.bfn = nil
   elseif p.bfn then
-    -- get buffer (or its lines) from result of function
-    local ok, res, opts = pcall(p.bfn, p)
-    if not ok then
-      p.buf = create_or_reuse_buf(p, {})
-    elseif type(res) == "number" then
-      p.buf = res
-    elseif type(res) == "table" then
-      p.buf = create_or_reuse_buf(p, res, opts)
-    end
+    -- will get buffer (or its lines) from result of function
   elseif p[1] then
     -- make scratch buffer with given lines
     p.buf = create_or_reuse_buf(p, p[1] or {}, p.bufopts)
@@ -136,12 +128,21 @@ local function prepare_buffer(p)
     p.buf = create_or_reuse_buf(p, {}, p.bufopts)
   end
 
-  if not buf_is_valid(p.buf or -1) then
+  if not p.bfn and not buf_is_valid(p.buf or -1) then
     error("Popup needs a valid buffer.")
   end
 
   if p.drag then
     require("popup.drag")(p)
+  end
+end
+
+function H.buf_from_func(p)
+  local buf, opts = p.bfn(p)
+  if type(buf) == "number" then
+    return buf
+  elseif type(buf) == "table" then
+    return create_or_reuse_buf(p, buf, opts)
   end
 end
 

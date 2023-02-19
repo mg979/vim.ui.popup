@@ -64,6 +64,9 @@ end
 --- Show popup. This is the safe function to run to ensure a popup is correctly
 --- displayed. It will reset blend level and theme (highlight groups).
 function Popup:show(seconds)
+  if self.bfn then
+    self.buf = H.buf_from_func(self)
+  end
   if not buf_is_valid(self.buf or -1) then
     self:destroy()
     error("Popup doesn't have a valid buffer.")
