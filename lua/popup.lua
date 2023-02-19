@@ -139,6 +139,8 @@ local function copy(src, dst)
   end
   if src.wincfg then
     if dst.pos == Pos.CUSTOM then
+      -- keep current window config
+      dst._.wincfg = src._.wincfg
       -- full copy, but keep new values
       for k, v in pairs(src.wincfg) do
         if not dst.wincfg[k] then
@@ -154,6 +156,8 @@ local function copy(src, dst)
         style = prev.style,
         border = prev.border,
         noautocmd = prev.noautocmd,
+        width = prev.width,
+        height = prev.height,
       }
     end
   end
@@ -174,7 +178,7 @@ function popup.new(opts)
   -- calling the queue adds something to it
   p.queue = setmetatable({ items = {} }, qmt)
 
-  p._ = {} -- private attributes
+  p._ = { wincfg = {} } -- private attributes
   p.bufopts = p.bufopts or {}
   p.winopts = p.winopts or {}
   p.wincfg = p.wincfg or {}

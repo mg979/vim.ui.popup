@@ -96,7 +96,8 @@ function Popup:hide(seconds)
     if has_method(self, "on_hide") and self:on_hide() then
       return
     end
-    update_wincfg(self)
+    -- store current window configuration
+    self._.wincfg = update_wincfg(self)
     api.win_close(self.win, true)
   end
   pcall(api.del_augroup_by_id, self._.aug)
@@ -125,7 +126,9 @@ function Popup:configure(opts)
       -- reconfigure the window, just in case
       api.win_set_config(self.win, do_wincfg(self))
     end
-  elseif opts.buf and opts.buf ~= self.buf then
+    return
+  end
+  if opts.buf and opts.buf ~= self.buf then
     -- update buffer options, potentially deleting old ones
     self.bufopts = opts.bufopts
     -- set a new buffer for the popup
@@ -246,7 +249,10 @@ function Popup:custom(relative)
   if self:is_visible() then
     api.win_set_config(self.win, cfg)
   end
-  update_wincfg(self)
+  -- custom popup store their current config here, user wincfg is not used, but
+  -- it's not overwritten either. Should the position be changed from CUSTOM,
+  -- it will be used again.
+  self._.wincfg = update_wincfg(self)
 end
 
 --- Move a popup on the screen.

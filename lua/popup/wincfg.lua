@@ -35,7 +35,7 @@ end
 
 --- Get border width for popup window (sum of both sides).
 local function border_width(p)
-  return ((p.wincfg or {}).border or "none") ~= "none" and 2 or 0
+  return (p.wincfg.border or "none") ~= "none" and 2 or 0
 end
 
 --- Get all buffer lines.
@@ -150,28 +150,27 @@ local function calc_dimensions(p, lines)
   -- calculate width first, height calculation needs it
   local w, h
   if p.pos == Pos.CUSTOM then
-    w = p.wincfg.width or calc_width(p, lines)
-    h = p.wincfg.height or calc_height(p, lines, w)
+    w = p._.wincfg.width or p.wincfg.width or calc_width(p, lines)
+    h = p._.wincfg.height or p.wincfg.height or calc_height(p, lines, w)
     return w, h
-  end
-  if p.pos == Pos.WIN_TOP or p.pos == Pos.WIN_BOTTOM then
+  elseif p.pos == Pos.WIN_TOP or p.pos == Pos.WIN_BOTTOM then
     w = api.win_get_width(p.prevwin) - border_width(p)
   else
-    w = calc_width(p, lines)
+    w = p.wincfg.width or calc_width(p, lines)
   end
-  return w, calc_height(p, lines, w)
+  return w, p.wincfg.height or calc_height(p, lines, w)
 end
 
 --- Update popup.wincfg by reading directly from window configuration, but
 --- adjust some values because of different defaults, and check problematic
---- values, in case the config couldn't be read.
+--- values, in case the config couldn't be read. If the window isn't valid,
+--- return the last valid configuration.
 ---@param p table
 ---@return table
 local function update_wincfg(p)
-  local o = win_is_valid(p.win or -1) and api.win_get_config(p.win) or p.wincfg
+  local o = win_is_valid(p.win or -1) and api.win_get_config(p.win) or p._.wincfg
   o.style = o.style or "minimal"
   o.win = o.relative == "win" and o.win or nil
-  p.wincfg = o
   return o
 end
 
@@ -188,7 +187,7 @@ local function do_wincfg(p)
   local win = not editor and not cursor and p.prevwin
   local lines = getlines(p.buf)
   local width, height = calc_dimensions(p, lines)
-  p.wincfg = {
+  return {
     relative = cursor and "cursor" or editor and "editor" or "win",
     win = win or nil,
     anchor = o.anchor or "NW",
@@ -203,7 +202,6 @@ local function do_wincfg(p)
     border = o.border or "none",
     noautocmd = o.noautocmd,
   }
-  return p.wincfg
 end
 
 return {

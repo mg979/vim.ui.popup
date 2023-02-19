@@ -167,18 +167,20 @@ function H.open_popup_win(p)
   vim.o.lazyredraw = true
 
   local function _open()
-    p.wincfg = p.wincfg or {}
     -- cursorline disabled for minimal style
     p.winopts = H.merge(
       {
         cursorline = p.wincfg.style ~= nil and p.wincfg.style ~= "minimal",
         wrap = true,
       },
-      p.winopts or {}
+      p.winopts
     )
     -- if previous window is valid, just reconfigure, otherwise open a new one
     if not api.win_is_valid(p.win or -1) then
-      p.win = api.open_win(p.buf, p.enter and not p.bfn, do_wincfg(p))
+      -- p.wincfg is best to be kept as user provided it
+      -- instead, store current window configuration in a private variable.
+      p._.wincfg = do_wincfg(p)
+      p.win = api.open_win(p.buf, p.enter and not p.bfn, p._.wincfg)
       p._.blend = p.winopts.winblend or p._.blend or api.win_get_option(p.win, "winblend")
       p.has_set_buf = nil -- this should be cleared anyway
     end
