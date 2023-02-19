@@ -12,18 +12,14 @@ local ms = function(s) return s * 1000 end
 local H = require("popup.helpers")
 local Pos = require("popup.wincfg").Pos
 
-local function has_method(p, name)
-  return p[name] and type(p[name]) == 'function'
-end
+local function has_method(p, name) return p[name] and type(p[name]) == "function" end
 
 local Popup = {}
 local autocmd = require("popup.autocmd")(Popup)
 
 --- Check if popup is visible.
 ---@return bool
-function Popup:is_visible()
-  return api.win_is_valid(self.win or -1)
-end
+function Popup:is_visible() return api.win_is_valid(self.win or -1) end
 
 --- Remove every information that the popup object holds.
 function Popup:destroy()
@@ -156,7 +152,9 @@ end
 ---@param opts table
 function Popup:notification(seconds)
   self.pos = Pos.EDITOR_TOPRIGHT
-  if self.noqueue then self:show(seconds) end
+  if self.noqueue then
+    self:show(seconds)
+  end
 end
 
 --- Set winblend for popup window.
@@ -196,7 +194,7 @@ function Popup:fade(for_seconds, endblend)
 
   local pb, pn, n = b.get("PopupBorder"), b.get("PopupNormal"), b.get("Normal")
   local blend_border = pb.bg ~= n.bg or pb.fg ~= n.bg
-  local blend_popup  = pn.bg ~= n.bg or pn.fg ~= n.bg
+  local blend_popup = pn.bg ~= n.bg or pn.fg ~= n.bg
 
   local function deferred_blend(delay, blend)
     defer_fn(function()
@@ -259,19 +257,23 @@ function Popup:move(dir, cells)
   if not dir or not self:is_visible() then
     return
   end
-  local o = type(dir) == 'table' and {
-    animate = dir.animate ~= false,
-    dir = dir.dir or dir[1] or "right",
-    cells = dir.cells or 10,
-    speed = dir.speed or 0.1,
-  } or {
-    dir = dir,
-    cells = cells or 1,
-    speed = 20,
-  }
+  local o = type(dir) == "table"
+      and {
+        animate = dir.animate ~= false,
+        dir = dir.dir or dir[1] or "right",
+        cells = dir.cells or 10,
+        speed = dir.speed or 0.1,
+      }
+    or {
+      dir = dir,
+      cells = cells or 1,
+      speed = 20,
+    }
 
   -- convert the position to custom, relative to edtor
-  if self.pos ~= Pos.CUSTOM then Popup.custom(self) end
+  if self.pos ~= Pos.CUSTOM then
+    Popup.custom(self)
+  end
 
   local lines, columns, cmdheight = vim.o.lines, vim.o.columns, vim.o.cmdheight
 
@@ -296,19 +298,23 @@ function Popup:move(dir, cells)
     self.queue.waiting = true
     local timer = vim.loop.new_timer()
     local i = 0
-    timer:start(0, o.speed, vim.schedule_wrap(function()
-      i = i + 1
-      if not self:is_visible() then
-        self:hide_now()
-        timer:stop()
-      elseif i <= o.cells then
-        _move(1)
-      else
-        self.queue.waiting = false
-        self.queue:proceed(self)
-        timer:stop()
-      end
-    end))
+    timer:start(
+      0,
+      o.speed,
+      vim.schedule_wrap(function()
+        i = i + 1
+        if not self:is_visible() then
+          self:hide_now()
+          timer:stop()
+        elseif i <= o.cells then
+          _move(1)
+        else
+          self.queue.waiting = false
+          self.queue:proceed(self)
+          timer:stop()
+        end
+      end)
+    )
   else
     _move(o.cells)
   end
@@ -332,8 +338,6 @@ function Popup:get_wincfg()
 end
 
 -- Dummy function, in case the method is called with the 'noqueue' option.
-function Popup:wait(_)
-  return self
-end
+function Popup:wait(_) return self end
 
 return Popup
