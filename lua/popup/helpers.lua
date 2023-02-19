@@ -136,8 +136,7 @@ function H.buf_from_func(p)
   end
 end
 
---- Update window, changing buffer if necessary. Set the cursor at the top of
---- the buffer.
+--- Update window, changing buffer if necessary. Set window options.
 ---@param p table
 function H.update_win(p)
   if p.has_set_buf then
@@ -147,7 +146,15 @@ function H.update_win(p)
   if next(p.wincfg) then
     api.win_set_config(p.win, do_wincfg(p))
   end
-  api.win_set_cursor(p.win, { 1, 0 })
+  -- set window options
+  for opt, val in pairs(p.winopts) do
+    api.win_set_option(p.win, opt, val)
+  end
+  -- turn off gutter by default
+  if not p.gutter then
+    api.win_set_option(p.win, "number", false)
+    api.win_set_option(p.win, "signcolumn", "no")
+  end
 end
 
 --- To avoid flicker, set lazyredraw, but restore old value even if there were
@@ -170,22 +177,12 @@ function H.open_popup_win(p)
       p.winopts or {}
     )
     -- if previous window is valid, just reconfigure, otherwise open a new one
-    if api.win_is_valid(p.win or -1) then
-      H.update_win(p)
-    else
+    if not api.win_is_valid(p.win or -1) then
       p.win = api.open_win(p.buf, p.enter and not p.bfn, do_wincfg(p))
       p._.blend = p.winopts.winblend or p._.blend or api.win_get_option(p.win, "winblend")
       p.has_set_buf = nil -- this should be cleared anyway
     end
-    -- set window options
-    for opt, val in pairs(p.winopts) do
-      api.win_set_option(p.win, opt, val)
-    end
-    -- turn off gutter by default
-    if not p.gutter then
-      api.win_set_option(p.win, "number", false)
-      api.win_set_option(p.win, "signcolumn", "no")
-    end
+    H.update_win(p)
   end
 
   local ok = H.call(_open)

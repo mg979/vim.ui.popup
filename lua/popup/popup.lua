@@ -75,6 +75,8 @@ function Popup:show(seconds)
     self:destroy()
     return
   end
+  -- show top of the buffer
+  api.win_set_cursor(self.win, { 1, 0 })
   -- reapply highlight groups
   H.call(themes.apply, self)
   -- reset blend level
@@ -109,7 +111,6 @@ end
 function Popup:redraw()
   if not self.has_set_buf and self:is_visible() then
     api.win_set_config(self.win, do_wincfg(self))
-    api.win_set_cursor(self.win, { 1, 0 })
   elseif self:is_visible() then
     H.configure_popup(self)
   end
