@@ -3,7 +3,7 @@
 --------------------------------------------------------------------------------
 -- Credits: github.com/tamton-aquib/flirt.nvim for inspiration
 
-local api = vim.api
+local api = require("popup.util").api
 local winid = vim.fn.win_getid
 local setmap = vim.keymap.set
 local CUSTOM = require("popup.wincfg").Pos.CUSTOM
@@ -22,7 +22,6 @@ local function map_release(p, m)
       end
       vim.cmd("nunmap <buffer> <LeftRelease>")
       vim.cmd("nunmap <buffer> <C-LeftRelease>")
-      -- api.nvim_set_current_win(p.prevwin)
       p.dragging = nil
     end, { silent = true, buffer = p.buf })
   end
@@ -50,14 +49,14 @@ local function Drag(p)
   end
 
   local m = vim.fn.getmousepos()
-  local w = api.nvim_win_get_config(p.win)
+  local w = api.win_get_config(p.win)
 
   p.dragging = p.dragging or map_release(p, m)
 
   w.row = m.screenrow - p.dragging.winrow
   w.col = m.screencol - p.dragging.wincol
 
-  api.nvim_win_set_config(p.win, w)
+  api.win_set_config(p.win, w)
 end
 
 --- Move window.
@@ -69,7 +68,7 @@ local function Move(p, dir, n)
     p:custom()
   end
 
-  local w = api.nvim_win_get_config(p.win)
+  local w = api.win_get_config(p.win)
   local r, c = w.row[false], w.col[false]
 
   if dir == "left" then
@@ -84,7 +83,7 @@ local function Move(p, dir, n)
 
   w.row = min(max(r, 1), vim.o.lines - w.height)
   w.col = min(max(c, 1), vim.o.columns - w.width)
-  api.nvim_win_set_config(p.win, w)
+  api.win_set_config(p.win, w)
 end
 
 --- Resize window by dragging the borders with <C-LeftDrag>.
@@ -97,7 +96,7 @@ local function Resize(p)
   end
 
   local m = vim.fn.getmousepos()
-  local cfg = api.nvim_win_get_config(p.win)
+  local cfg = api.win_get_config(p.win)
   local r, c, w, h = cfg.row[false], cfg.col[false], cfg.width, cfg.height
 
   p.dragging = p.dragging or map_release(p, m)
@@ -152,7 +151,7 @@ local function Resize(p)
   cfg.col = max(c, 1)
   cfg.width = max(w, 1)
   cfg.height = max(h, 1)
-  api.nvim_win_set_config(p.win, cfg)
+  api.win_set_config(p.win, cfg)
 end
 
 --- Set up drag mappings for popup buffer.

@@ -1,10 +1,10 @@
 local popup = { Pos = require("popup.wincfg").Pos }
 
 -- api {{{1
-local api = vim.api
-local curwin = api.nvim_get_current_win
-local win_is_valid = api.nvim_win_is_valid
-local win_close = api.nvim_win_close
+local api = require("popup.util").api
+local curwin = api.get_current_win
+local win_is_valid = api.win_is_valid
+local win_close = api.win_close
 local H = require("popup.helpers")
 -- }}}
 
@@ -230,8 +230,8 @@ function popup.panic()
       v:destroy_now()
     end
   end
-  for _, win in ipairs(api.nvim_list_wins()) do
-    if api.nvim_win_get_config(win).relative ~= "" then
+  for _, win in ipairs(api.list_wins()) do
+    if api.win_get_config(win).relative ~= "" then
       win_close(win, true)
     end
   end

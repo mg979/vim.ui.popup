@@ -2,8 +2,7 @@
 -- Autocommands creation for popups.
 --------------------------------------------------------------------------------
 
-local api = vim.api
-local curwin = api.nvim_get_current_win
+local api = require("popup.util").api
 local Popup
 
 --- Create an autocommand for the popup and register it in the popup augroup.
@@ -12,7 +11,7 @@ local Popup
 ---@param au table
 local function create(p, ev, au)
   au.group = p._.aug
-  api.nvim_create_autocmd(ev, au)
+  api.create_autocmd(ev, au)
 end
 
 --- Initialize augroup for this popup, also clearing autocommands previously
@@ -26,7 +25,7 @@ local function on_show(p)
     if not p:is_visible() then
       return
     end
-    p._.aug = api.nvim_create_augroup("__VimUiPopup_" .. p.ID, { clear = true })
+    p._.aug = api.create_augroup("__VimUiPopup_" .. p.ID, { clear = true })
 
     -- redraw the popup on buffer change
     if p.autoresize then
@@ -46,8 +45,8 @@ local function on_show(p)
 
     -- if the window should be entered, make sure it actually is
     -- entering the window immediately is prevented by having p.bfn
-    if p.enter and curwin() ~= p.win then
-      api.nvim_set_current_win(p.win)
+    if p.enter and api.get_current_win() ~= p.win then
+      api.set_current_win(p.win)
     end
 
     local hide_on = p.hide_on
@@ -71,6 +70,9 @@ local function on_show(p)
 end
 
 return function(p)
+  if not p then
+    error("popup.autocmd needs popup object")
+  end
   Popup = p
   return {
     create = create,

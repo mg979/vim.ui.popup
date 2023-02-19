@@ -2,13 +2,8 @@
 -- Popup methods
 --------------------------------------------------------------------------------
 
-local api = vim.api
-local win_close = api.nvim_win_close
-local reconfigure = api.nvim_win_set_config
-local win_is_valid = api.nvim_win_is_valid
-local buf_is_valid = api.nvim_buf_is_valid
-local win_set_option = api.nvim_win_set_option
-local win_get_config = api.nvim_win_get_config
+local U = require("popup.util")
+local api = U.api
 local defer_fn = vim.defer_fn
 local themes = require("popup.themes")
 local do_wincfg = require("popup.wincfg").do_wincfg
@@ -27,7 +22,7 @@ local autocmd = require("popup.autocmd")(Popup)
 --- Check if popup is visible.
 ---@return bool
 function Popup:is_visible()
-  return win_is_valid(self.win or -1)
+  return api.win_is_valid(self.win or -1)
 end
 
 --- Remove every information that the popup object holds.
@@ -36,8 +31,8 @@ function Popup:destroy()
     return
   end
   self:hide()
-  if H.is_temp_buffer(self) then
-    api.nvim_buf_delete(self.buf)
+  if U.is_temp_buffer(self.buf) then
+    api.buf_delete(self.buf)
   end
 end
 
@@ -49,8 +44,8 @@ function Popup:destroy_now()
   end
   --- bypasses queue, cannot use : notation.
   Popup.hide(self)
-  if H.is_temp_buffer(self) then
-    api.nvim_buf_delete(self.buf)
+  if U.is_temp_buffer(self.buf) then
+    api.buf_delete(self.buf)
   end
 end
 
@@ -67,7 +62,7 @@ function Popup:show(seconds)
   if self.bfn then
     self.buf = H.buf_from_func(self)
   end
-  if not buf_is_valid(self.buf or -1) then
+  if not api.buf_is_valid(self.buf or -1) then
     self:destroy()
     error("Popup doesn't have a valid buffer.")
   end
@@ -83,7 +78,7 @@ function Popup:show(seconds)
   -- reapply highlight groups
   H.call(themes.apply, self)
   -- reset blend level
-  win_set_option(self.win, "winblend", self._.blend)
+  api.win_set_option(self.win, "winblend", self._.blend)
   if has_method(self, "on_show") then
     self:on_show()
   end
@@ -95,14 +90,14 @@ end
 --- Hide popup. This is always called when the window is closed with a popup
 --- method or autocommand, and also with popup.destroy_ns or popup.panic.
 function Popup:hide(seconds)
-  if win_is_valid(self.win or -1) then
+  if api.win_is_valid(self.win or -1) then
     if has_method(self, "on_hide") and self:on_hide() then
       return
     end
     update_wincfg(self)
-    win_close(self.win, true)
+    api.win_close(self.win, true)
   end
-  pcall(api.nvim_del_augroup_by_id, self._.aug)
+  pcall(api.del_augroup_by_id, self._.aug)
   -- TODO: self._ should be cleared, but it currently breaks too much stuff
   if self.noqueue and seconds then
     defer_fn(function() self:show() end, seconds * 1000)
@@ -113,8 +108,8 @@ end
 --- It doesn't open a new window, it doesn't reset highlight or blend level.
 function Popup:redraw()
   if not self.has_set_buf and self:is_visible() then
-    reconfigure(self.win, do_wincfg(self))
-    api.nvim_win_set_cursor(self.win, { 1, 0 })
+    api.win_set_config(self.win, do_wincfg(self))
+    api.win_set_cursor(self.win, { 1, 0 })
   elseif self:is_visible() then
     H.configure_popup(self)
   end
@@ -127,7 +122,7 @@ function Popup:configure(opts)
   if not opts then
     if self:is_visible() then
       -- reconfigure the window, just in case
-      reconfigure(self.win, do_wincfg(self))
+      api.win_set_config(self.win, do_wincfg(self))
     end
   elseif opts.buf and opts.buf ~= self.buf then
     -- update buffer options, potentially deleting old ones
@@ -152,7 +147,7 @@ function Popup:configure(opts)
         end
       end
     end
-    reconfigure(self.win, do_wincfg(H.merge(self, opts)))
+    api.win_set_config(self.win, do_wincfg(H.merge(self, opts)))
   end
 end
 
@@ -171,7 +166,7 @@ function Popup:blend(val)
     return
   end
   self._.blend = val < 0 and 0 or val > 100 and 100 or val
-  win_set_option(self.win, "winblend", self._.blend)
+  api.win_set_option(self.win, "winblend", self._.blend)
 end
 
 --- Make the popup window fade out.
@@ -196,7 +191,7 @@ function Popup:fade(for_seconds, endblend)
   local stepblend = (endblend - startblend) / steps
 
   local b = require("popup.blend")
-  local hi = api.nvim_set_hl
+  local hi = api.set_hl
 
   local pb, pn, n = b.get("PopupBorder"), b.get("PopupNormal"), b.get("Normal")
   local blend_border = pb.bg ~= n.bg or pb.fg ~= n.bg
@@ -205,7 +200,7 @@ function Popup:fade(for_seconds, endblend)
   local function deferred_blend(delay, blend)
     defer_fn(function()
       if self:is_visible() then
-        win_set_option(self.win, "winblend", blend)
+        api.win_set_option(self.win, "winblend", blend)
         if blend_popup then
           hi(0, "PopupNormal", {
             bg = themes.PopupNormal.background, -- handled by winblend
@@ -241,14 +236,14 @@ end
 ---@param relative string
 function Popup:custom(relative)
   self.pos = Pos.CUSTOM
-  local cfg = self:is_visible() and api.nvim_win_get_config(self.win) or self.wincfg
+  local cfg = self:is_visible() and api.win_get_config(self.win) or self.wincfg
   cfg.relative = relative or "editor"
   cfg.win = cfg.relative == "win" and cfg.win or nil
   local pos = vim.fn.screenpos(0, vim.fn.line("."), vim.fn.col("."))
   cfg.row = math.min(pos.row, vim.o.lines - cfg.height - vim.o.cmdheight)
   cfg.col = math.min(pos.col, vim.o.columns - cfg.width)
   if self:is_visible() then
-    reconfigure(self.win, cfg)
+    api.win_set_config(self.win, cfg)
   end
   update_wincfg(self)
 end
@@ -277,7 +272,7 @@ function Popup:move(dir, cells)
   local lines, columns, cmdheight = vim.o.lines, vim.o.columns, vim.o.cmdheight
 
   local function _move(step)
-    local cfg = win_get_config(self.win)
+    local cfg = api.win_get_config(self.win)
     local col, row = cfg.col[false], cfg.row[false]
     if o.dir == "down" and (row + cfg.height) < lines - cmdheight then
       row = row + step
@@ -290,7 +285,7 @@ function Popup:move(dir, cells)
     end
     cfg.col[false] = col
     cfg.row[false] = row
-    reconfigure(self.win, cfg)
+    api.win_set_config(self.win, cfg)
   end
 
   if o.animate then
@@ -329,7 +324,7 @@ end
 --- it will be generated when the window will be created.
 ---@return table
 function Popup:get_wincfg()
-  return self:is_visible() and win_get_config(self.win) or do_wincfg(self)
+  return self:is_visible() and api.win_get_config(self.win) or do_wincfg(self)
 end
 
 -- Dummy function, in case the method is called with the 'noqueue' option.

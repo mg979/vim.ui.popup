@@ -2,13 +2,8 @@
 -- Helper functions
 --------------------------------------------------------------------------------
 
-local api = vim.api
-local reconfigure = api.nvim_win_set_config
-local buf_is_valid = api.nvim_buf_is_valid
-local win_is_valid = api.nvim_win_is_valid
-local buf_set_option = api.nvim_buf_set_option
-local win_get_option = api.nvim_win_get_option
-local win_set_option = api.nvim_win_set_option
+local U = require("popup.util")
+local api = U.api
 local do_wincfg = require("popup.wincfg").do_wincfg
 
 --------------------------------------------------------------------------------
@@ -17,7 +12,7 @@ local do_wincfg = require("popup.wincfg").do_wincfg
 
 local function setlines(buf, lines)
   lines = type(lines) == "string" and vim.split(lines, "\n", { trimempty = true }) or lines
-  return vim.api.nvim_buf_set_lines(buf, 0, -1, true, lines)
+  return api.buf_set_lines(buf, 0, -1, true, lines)
 end
 
 local function set_bufopts(bnr, bo) -- {{{1
@@ -29,7 +24,7 @@ local function set_bufopts(bnr, bo) -- {{{1
     bo.scratch = nil
   end
   for opt, val in pairs(bo) do
-    buf_set_option(bnr, opt, val)
+    api.buf_set_option(bnr, opt, val)
   end
 end
 
@@ -70,15 +65,10 @@ end
 function H.call(...)
   local ok, res = pcall(...)
   if not ok then
-    api.nvim_echo({{"popup:", "Error"}, {" " .. res, "WarningMsg"}}, true, {})
+    api.echo({{"popup:", "Error"}, {" " .. res, "WarningMsg"}}, true, {})
     return false
   end
   return res or true
-end
-
---- Return true if a new scratch buffer was created for a popup.
-function H.is_temp_buffer(p)
-  return buf_is_valid(p.buf or -1) and api.nvim_buf_get_var(p.buf, "popup_scratch_buffer")
 end
 
 --- Create buffer and set its options from optional table.
@@ -86,14 +76,14 @@ end
 ---@param opts table
 ---@return number
 function H.create_buf(lines, opts)
-  local bnr = api.nvim_create_buf(false, true)
+  local bnr = api.create_buf(false, true)
   setlines(bnr, lines)
   -- make buffer scratch by default
   opts = opts or {}
   opts.scratch = opts.scratch ~= false
   set_bufopts(bnr, opts)
   -- mark the buffer, so that it is reused, then wiped when popup is destroyed
-  api.nvim_buf_set_var(bnr, "popup_scratch_buffer", true)
+  api.buf_set_var(bnr, "popup_scratch_buffer", true)
   return bnr
 end
 
@@ -104,7 +94,7 @@ end
 -- methods, so they can't be accessed like Popup:fn().
 
 local function create_or_reuse_buf(p, lines, opts)
-  if H.is_temp_buffer(p) then
+  if U.is_temp_buffer(p.buf) then
     setlines(p.buf, lines)
     return p.buf
   end
@@ -123,12 +113,12 @@ local function prepare_buffer(p)
     -- make scratch buffer with given lines
     p.buf = create_or_reuse_buf(p, p[1] or {}, p.bufopts)
     p[1] = nil
-  elseif not buf_is_valid(p.buf or -1) then
+  elseif not api.buf_is_valid(p.buf or -1) then
     -- make scratch buffer
     p.buf = create_or_reuse_buf(p, {}, p.bufopts)
   end
 
-  if not p.bfn and not buf_is_valid(p.buf or -1) then
+  if not p.bfn and not api.buf_is_valid(p.buf or -1) then
     error("Popup needs a valid buffer.")
   end
 
@@ -155,9 +145,9 @@ function H.update_win(p)
     p.has_set_buf = nil
   end
   if next(p.wincfg) then
-    reconfigure(p.win, do_wincfg(p))
+    api.win_set_config(p.win, do_wincfg(p))
   end
-  api.nvim_win_set_cursor(p.win, { 1, 0 })
+  api.win_set_cursor(p.win, { 1, 0 })
 end
 
 --- To avoid flicker, set lazyredraw, but restore old value even if there were
@@ -180,21 +170,21 @@ function H.open_popup_win(p)
       p.winopts or {}
     )
     -- if previous window is valid, just reconfigure, otherwise open a new one
-    if win_is_valid(p.win or -1) then
+    if api.win_is_valid(p.win or -1) then
       H.update_win(p)
     else
-      p.win = api.nvim_open_win(p.buf, p.enter and not p.bfn, do_wincfg(p))
-      p._.blend = p.winopts.winblend or p._.blend or win_get_option(p.win, "winblend")
+      p.win = api.open_win(p.buf, p.enter and not p.bfn, do_wincfg(p))
+      p._.blend = p.winopts.winblend or p._.blend or api.win_get_option(p.win, "winblend")
       p.has_set_buf = nil -- this should be cleared anyway
     end
     -- set window options
     for opt, val in pairs(p.winopts) do
-      win_set_option(p.win, opt, val)
+      api.win_set_option(p.win, opt, val)
     end
     -- turn off gutter by default
     if not p.gutter then
-      win_set_option(p.win, "number", false)
-      win_set_option(p.win, "signcolumn", "no")
+      api.win_set_option(p.win, "number", false)
+      api.win_set_option(p.win, "signcolumn", "no")
     end
   end
 
@@ -211,7 +201,7 @@ function H.configure_popup(p)
   -- ensure popup has a valid buffer
   local ok = H.call(prepare_buffer, p)
   -- if the window is visible, we update it, why not
-  if ok and win_is_valid(p.win or -1) then
+  if ok and api.win_is_valid(p.win or -1) then
     H.update_win(p)
   end
   return ok

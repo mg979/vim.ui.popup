@@ -2,15 +2,15 @@
 -- Popup themes
 --------------------------------------------------------------------------------
 
-local api = vim.api
-local hi = api.nvim_set_hl
+local api = require("popup.util").api
+local hi = api.set_hl
 
 local M = { winhighlight = "" }
 
-M.aug = api.nvim_create_augroup("PopupHlts", { clear = true })
+M.aug = api.create_augroup("PopupHlts", { clear = true })
 
 -- Reset on colorscheme change.
-api.nvim_create_autocmd("Colorscheme", {
+api.create_autocmd("Colorscheme", {
   group = M.aug,
   callback = function(_) M.default() end,
 })
@@ -57,12 +57,12 @@ M.default()
 function M.apply(p)
   if p.winopts and not p.winopts.winhighlight then
     pcall(M[p.theme or "default"])
-    api.nvim_win_set_option(p.win, 'winhighlight', M.winhighlight)
+    api.win_set_option(p.win, 'winhighlight', M.winhighlight)
   end
 end
 
 function M.get_hl(name)
-  return api.nvim_get_hl_by_name(name, vim.o.termguicolors)
+  return api.get_hl_by_name(name, vim.o.termguicolors)
 end
 
 -- Access the table like themes.Normal to get the Normal highlight group

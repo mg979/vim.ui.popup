@@ -2,7 +2,7 @@
 -- Helpers for window blending
 --------------------------------------------------------------------------------
 
-local api = vim.api
+local api = require("popup.util").api
 local floor = math.floor
 local themes = require("popup.themes")
 
@@ -70,7 +70,7 @@ local rgb2tbl = okbit and b_rgb2tbl or nb_rgb2tbl
 ---@param group string
 ---@return table
 local function hl_full(group)
-  local t = api.nvim_get_hl_by_name(group, vim.o.termguicolors)
+  local t = api.get_hl_by_name(group, vim.o.termguicolors)
   if not t.foreground and not t.background then
     return NORMAL or t
   end
@@ -149,7 +149,7 @@ local function clear_caches()
 end
 
 -- Reset highlight tables on colorscheme change.
-api.nvim_create_autocmd("Colorscheme", {
+api.create_autocmd("Colorscheme", {
   group = themes.aug,
   callback = clear_caches,
 })

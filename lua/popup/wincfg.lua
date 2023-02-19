@@ -2,10 +2,10 @@
 -- Window configuration for nvim_open_win()
 -------------------------------------------------------------------------------
 
-local api = vim.api
+local api = require("popup.util").api
 local strwidth = vim.fn.strdisplaywidth
-local buf_get_option = api.nvim_buf_get_option
-local win_is_valid = api.nvim_win_is_valid
+local buf_get_option = api.buf_get_option
+local win_is_valid = api.win_is_valid
 
 -- popup standard positions
 local Pos = {
@@ -40,13 +40,13 @@ end
 
 --- Get all buffer lines.
 local function getlines(buf)
-  return vim.api.nvim_buf_get_lines(buf, 0, -1, true)
+  return api.buf_get_lines(buf, 0, -1, true)
 end
 
 --- Get row for popup, based on popup position.
 local function get_row(p, height)
   local rows = vim.o.lines
-  local wh = api.nvim_win_get_height(p.prevwin)
+  local wh = api.win_get_height(p.prevwin)
   local min = tabline_row()
   return ({
                 [Pos.AT_CURSOR] = 1,
@@ -71,7 +71,7 @@ end
 --- Get column for popup, based on popup position.
 local function get_column(p, width)
   local cols = vim.o.columns
-  local x = api.nvim_win_get_position(p.prevwin)[2]
+  local x = api.win_get_position(p.prevwin)[2]
   return ({
                 [Pos.AT_CURSOR] = 1,
                   [Pos.WIN_TOP] = x,
@@ -153,7 +153,7 @@ local function calc_dimensions(p, lines)
     return w, h
   end
   if p.pos == Pos.WIN_TOP or p.pos == Pos.WIN_BOTTOM then
-    w = api.nvim_win_get_width(p.prevwin) - border_width(p)
+    w = api.win_get_width(p.prevwin) - border_width(p)
   else
     w = calc_width(p, lines)
   end
@@ -166,7 +166,7 @@ end
 ---@param p table
 ---@return table
 local function update_wincfg(p)
-  local o = win_is_valid(p.win or -1) and api.nvim_win_get_config(p.win) or p.wincfg
+  local o = win_is_valid(p.win or -1) and api.win_get_config(p.win) or p.wincfg
   o.style = o.style or "minimal"
   o.win = o.relative == "win" and o.win or nil
   p.wincfg = o
