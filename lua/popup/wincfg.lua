@@ -109,7 +109,9 @@ local function calc_width(p, lines)
       end
     end
     -- limit width to textwidth
-    w = math.min(w, math.max(buf_get_option(p.buf, "textwidth"), 79))
+    if p.textwidth ~= false then
+      w = math.min(w, math.max(buf_get_option(p.buf, "textwidth"), 79))
+    end
   end
   return w
 end

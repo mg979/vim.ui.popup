@@ -23,6 +23,7 @@ local Pos = popup.Pos
 -- noqueue      false                 bool      don't use async queuing
 -- enter        false                 bool      enter popup window after creation
 -- gutter       false                 bool      disabled by default, whatever the style
+-- textwidth    true                  bool      limit width to textwidth (or 79)
 -- namespace    "_G"                  string    namespace for popup
 -- theme        "default"             string    popup appearance
 -- bufopts      {}                    table     buffer options: { option = value, ... }
