@@ -31,9 +31,7 @@ function Popup:destroy()
     return
   end
   self:hide()
-  if U.is_temp_buffer(self.buf) then
-    api.buf_delete(self.buf)
-  end
+  U.delete_popup_buffers(self)
 end
 
 --- Destroy the popup without waiting for the queue to process.
@@ -44,9 +42,7 @@ function Popup:destroy_now()
   end
   --- bypasses queue, cannot use : notation.
   Popup.hide(self)
-  if U.is_temp_buffer(self.buf) then
-    api.buf_delete(self.buf)
-  end
+  U.delete_popup_buffers(self)
 end
 
 --- Hide the popup without waiting for the queue to process.
@@ -101,9 +97,10 @@ function Popup:hide(seconds)
     api.win_close(self.win, true)
   end
   pcall(api.del_augroup_by_id, self._.aug)
-  -- TODO: self._ should be cleared, but it currently breaks too much stuff
   if self.noqueue and seconds then
     defer_fn(function() self:show() end, seconds * 1000)
+  elseif self.disposable then
+    self:destroy_now()
   end
 end
 
@@ -145,7 +142,7 @@ function Popup:configure(opts)
     if opts.wincfg then
       -- if there is some other key, we cannot reconfigure only the window
       for k in pairs(opts) do
-        if k ~= 'wincfg' then
+        if k ~= "wincfg" then
           H.configure_popup(H.merge(self, opts))
           return
         end
