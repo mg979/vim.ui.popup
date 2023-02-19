@@ -214,6 +214,22 @@ q = popup.new { buf = lorem, wincfg = { border = "single" } }
 -- :configure({ pos = Pos.EDITOR_BOTRIGHT, wincfg = {border = "none"} }):show()
 
 -------------------------------------------------------------------------------
+-- Different themes
+-------------------------------------------------------------------------------
+-- Themes are basically a predefinite 'winhighlight' option that is applied to
+-- a single popup.
+
+-- local i = popup.new { "\n" .. [[
+--       ▇▇▇▇▇▇▇                             ▇▇▇   
+--       ▇       ▇▇▇▇▇  ▇▇▇▇▇   ▇▇▇▇  ▇▇▇▇▇  ▇▇▇   
+--       ▇       ▇    ▇ ▇    ▇ ▇    ▇ ▇    ▇ ▇▇▇   
+--       ▇▇▇▇▇   ▇    ▇ ▇    ▇ ▇    ▇ ▇    ▇  ▇    
+--       ▇       ▇▇▇▇▇  ▇▇▇▇▇  ▇    ▇ ▇▇▇▇▇        
+--       ▇       ▇   ▇  ▇   ▇  ▇    ▇ ▇   ▇  ▇▇▇   
+--       ▇▇▇▇▇▇▇ ▇    ▇ ▇    ▇  ▇▇▇▇  ▇    ▇ ▇▇▇]] .. "\n",
+--   theme = "error", pos = Pos.EDITOR_CENTER }:show(0.5):wait(.2):show(0.5):wait(.2):show(0.5)
+
+-------------------------------------------------------------------------------
 -- A slideshow
 -------------------------------------------------------------------------------
 -- r is currently configured to show 'git status', let's use the other buffer

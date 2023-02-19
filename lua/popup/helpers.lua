@@ -101,25 +101,25 @@ local function create_or_reuse_buf(p, lines, opts)
   return H.create_buf(lines, opts)
 end
 
-local function prepare_buffer(p)
-  if p.has_set_buf then
-    -- cleared in update_win
-    p.buf = p.has_set_buf
-    -- must be sure that there is no function to generate buffer
-    p.bfn = nil
-  elseif p.bfn then
-    -- will get buffer (or its lines) from result of function
-  elseif p[1] then
+local function buffer_to_number(p, buf, opts)
+  if type(buf) == "number" then
+    return buf
+  elseif type(buf) == "string" then
+    -- convert to table
+    return create_or_reuse_buf(p, vim.split(buf, "\n"), opts)
+  elseif type(buf) == "table" then
     -- make scratch buffer with given lines
-    p.buf = create_or_reuse_buf(p, p[1] or {}, p.bufopts)
-    p[1] = nil
-  elseif not api.buf_is_valid(p.buf or -1) then
-    -- make scratch buffer
-    p.buf = create_or_reuse_buf(p, {}, p.bufopts)
+    return create_or_reuse_buf(p, buf, opts)
   end
+  return -1
+end
 
-  if not p.bfn and not api.buf_is_valid(p.buf or -1) then
-    error("Popup needs a valid buffer.")
+local function prepare_buffer(p)
+  if not p.bfn then
+    p.buf = H.buffer_from_options(p)
+    if not api.buf_is_valid(p.buf or -1) then
+      error("Popup needs a valid buffer.")
+    end
   end
 
   if p.drag then
@@ -127,6 +127,36 @@ local function prepare_buffer(p)
   end
 end
 
+--- This function can be called by either popup.new() or popup:configure().
+--- Buffer can be provided in the `buf` value, or the [1] index:
+--- 1. as a number
+--- 2. as a string (then split by newlines)
+--- 3. as a table with lines
+---@param p table
+---@return number
+function H.buffer_from_options(p)
+  if p.bfn then
+    return buffer_to_number(p, p.bfn(p))
+  end
+  local buf = p.newbuf or p[1] or p.buf
+  -- p.buf at this point could be something else than a number
+  -- nullify invalid/uninteresting values
+  p[1] = nil
+  if type(p.buf) ~= 'number' then
+    p.buf = nil
+  end
+  -- p.newbuf can be set by popup:configure(); if it exists, we don't clear it,
+  -- will be used to check whether an open window must set a new buffer.
+  buf = buffer_to_number(p, buf, p.bufopts)
+  if not api.buf_is_valid(buf or -1) then
+    -- make empty scratch buffer
+    buf = create_or_reuse_buf(p, {})
+  end
+  return buf
+end
+
+--- Evaluate p.bfn to set popup buffer.
+---@param p table
 function H.buf_from_func(p)
   local buf, opts = p.bfn(p)
   if type(buf) == "number" then
@@ -139,9 +169,9 @@ end
 --- Update window, changing buffer if necessary. Set window options.
 ---@param p table
 function H.update_win(p)
-  if p.has_set_buf then
+  if p.newbuf then
     vim.fn.win_execute(p.win, "noautocmd buffer " .. p.buf, true)
-    p.has_set_buf = nil
+    p.newbuf = nil
   end
   if next(p.wincfg) then
     api.win_set_config(p.win, do_wincfg(p))
@@ -182,7 +212,6 @@ function H.open_popup_win(p)
       p._.wincfg = do_wincfg(p)
       p.win = api.open_win(p.buf, p.enter and not p.bfn, p._.wincfg)
       p._.blend = p.winopts.winblend or p._.blend or api.win_get_option(p.win, "winblend")
-      p.has_set_buf = nil -- this should be cleared anyway
     end
     H.update_win(p)
   end

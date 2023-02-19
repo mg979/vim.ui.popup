@@ -20,12 +20,12 @@ end
 
 function U.delete_popup_buffers(p)
   if U.is_temp_buffer(p.buf) then
-    U.api.buf_delete(p.buf)
+    U.api.buf_delete(p.buf, { force = true })
     local bbuf = p.buf - 1
     if p.wincfg.border and fn.bufexists(bbuf) == 1 and fn.buflisted(bbuf) == 0 then
       local lines = U.api.buf_get_lines(bbuf, 1, -1, true)
       if #lines == 1 and lines[1] == '' then
-        U.api.buf_delete(bbuf)
+        U.api.buf_delete(bbuf, { force = true })
       end
     end
   end

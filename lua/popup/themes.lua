@@ -48,6 +48,10 @@ function M.default()
   M.winhighlight = table.concat(wh, ",")
 end
 
+function M.error()
+  M.winhighlight = "NormalFloat:Error,FloatBorder:Error"
+end
+
 -- Set defaults right away
 M.default()
 

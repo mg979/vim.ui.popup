@@ -26,7 +26,9 @@ function Popup:destroy()
   if has_method(self, "on_dispose") and self:on_dispose() then
     return
   end
-  self:hide()
+  if self:is_visible() then
+    self:hide()
+  end
   U.delete_popup_buffers(self)
 end
 
@@ -37,7 +39,9 @@ function Popup:destroy_now()
     return
   end
   --- bypasses queue, cannot use : notation.
-  Popup.hide(self)
+  if self:is_visible() then
+    Popup.hide(self)
+  end
   U.delete_popup_buffers(self)
 end
 
@@ -52,7 +56,7 @@ end
 --- displayed. It will reset blend level and theme (highlight groups).
 function Popup:show(seconds)
   if self.bfn then
-    self.buf = H.buf_from_func(self)
+    self.buf = H.buffer_from_options(self)
   end
   if not api.buf_is_valid(self.buf or -1) then
     self:destroy()
@@ -103,7 +107,7 @@ end
 --- Redraw the popup, keeping its config unchanged. Cheaper than Popup.show.
 --- It doesn't open a new window, it doesn't reset highlight or blend level.
 function Popup:redraw()
-  if not self.has_set_buf and self:is_visible() then
+  if not self.newbuf and self:is_visible() then
     api.win_set_config(self.win, do_wincfg(self))
   elseif self:is_visible() then
     H.configure_popup(self)
@@ -121,15 +125,11 @@ function Popup:configure(opts)
     end
     return
   end
-  if opts.buf and opts.buf ~= self.buf then
-    -- update buffer options, potentially deleting old ones
-    self.bufopts = opts.bufopts
-    -- set a new buffer for the popup
-    if type(opts.buf) == "number" then
-      self.has_set_buf = opts.buf
-    else
-      self.has_set_buf = H.create_buf(opts.buf, self.bufopts)
-    end
+  -- newbuf will be cleared in update_win()
+  opts.newbuf = not opts.bfn and opts.buf or opts[1]
+  if opts.newbuf then
+    self.bfn = nil
+    opts.buf, opts[1] = nil, nil
     H.configure_popup(H.merge(self, opts))
   elseif not self:is_visible() then
     -- hidden, we cannot reconfigure only the window
