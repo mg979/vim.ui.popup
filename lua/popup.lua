@@ -195,6 +195,7 @@ end
 
 --- Create a buffer from given lines, apply the given options.
 --- If bufopts.scratch == true, |scratch-buffer| options are set.
+--- It is scratch by default.
 ---@param lines table|string
 ---@param bufopts table|nil
 function popup.make_buffer(lines, bufopts)

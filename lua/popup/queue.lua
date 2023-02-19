@@ -12,6 +12,7 @@
 
 -- These methods don't want to be queued:
 --    Popup.is_visible    -> bool
+--    Popup.get_wincfg    -> table, 
 --    Popup.hide_now      -> void, empties queue, removes autocommands
 --    Popup.destroy_now   -> void, invalidates popup object
 

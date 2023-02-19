@@ -76,6 +76,11 @@ function H.call(...)
   return res or true
 end
 
+--- Return true if a new scratch buffer was created for a popup.
+function H.is_temp_buffer(p)
+  return buf_is_valid(p.buf or -1) and api.nvim_buf_get_var(p.buf, "popup_scratch_buffer")
+end
+
 --- Create buffer and set its options from optional table.
 ---@param lines table
 ---@param opts table
@@ -83,7 +88,12 @@ end
 function H.create_buf(lines, opts)
   local bnr = api.nvim_create_buf(false, true)
   setlines(bnr, lines)
+  -- make buffer scratch by default
+  opts = opts or {}
+  opts.scratch = opts.scratch ~= false
   set_bufopts(bnr, opts)
+  -- mark the buffer, so that it is reused, then wiped when popup is destroyed
+  api.nvim_buf_set_var(bnr, "popup_scratch_buffer", true)
   return bnr
 end
 
@@ -93,6 +103,14 @@ end
 -- These are functions that require a popup as argument, but are not popup
 -- methods, so they can't be accessed like Popup:fn().
 
+local function create_or_reuse_buf(p, lines, opts)
+  if H.is_temp_buffer(p) then
+    setlines(p.buf, lines)
+    return p.buf
+  end
+  return H.create_buf(lines, opts)
+end
+
 local function prepare_buffer(p)
   if p.has_set_buf then
     -- cleared in update_win
@@ -101,19 +119,21 @@ local function prepare_buffer(p)
     p.bfn = nil
   elseif p.bfn then
     -- get buffer (or its lines) from result of function
-    local buf, opts = p.bfn(p)
-    if type(buf) == "number" then
-      p.buf = buf
-    elseif type(buf) == "table" then
-      p.buf = H.create_buf(buf, H.merge(opts, { scratch = true }))
+    local ok, res, opts = pcall(p.bfn, p)
+    if not ok then
+      p.buf = create_or_reuse_buf(p, {})
+    elseif type(res) == "number" then
+      p.buf = res
+    elseif type(res) == "table" then
+      p.buf = create_or_reuse_buf(p, res, opts)
     end
   elseif p[1] then
     -- make scratch buffer with given lines
-    p.buf = H.create_buf(p[1] or {}, H.merge(p.bufopts, { scratch = true }))
+    p.buf = create_or_reuse_buf(p, p[1] or {}, p.bufopts)
     p[1] = nil
   elseif not buf_is_valid(p.buf or -1) then
     -- make scratch buffer
-    p.buf = H.create_buf({}, H.merge(p.bufopts, { scratch = true }))
+    p.buf = create_or_reuse_buf(p, {}, p.bufopts)
   end
 
   if not buf_is_valid(p.buf or -1) then

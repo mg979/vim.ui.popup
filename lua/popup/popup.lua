@@ -33,21 +33,25 @@ end
 --- Remove every information that the popup object holds.
 function Popup:destroy()
   if has_method(self, "on_dispose") and self:on_dispose() then
-    return self
+    return
   end
   self:hide()
-  self = nil
+  if H.is_temp_buffer(self) then
+    api.nvim_buf_delete(self.buf)
+  end
 end
 
 --- Destroy the popup without waiting for the queue to process.
 function Popup:destroy_now()
   self.queue:clear_queue()
   if has_method(self, "on_dispose") and self:on_dispose() then
-    return self
+    return
   end
   --- bypasses queue, cannot use : notation.
   Popup.hide(self)
-  self = nil
+  if H.is_temp_buffer(self) then
+    api.nvim_buf_delete(self.buf)
+  end
 end
 
 --- Hide the popup without waiting for the queue to process.
