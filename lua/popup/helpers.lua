@@ -196,6 +196,8 @@ function H.open_popup_win(p)
   local oldlazy = vim.o.lazyredraw
   vim.o.lazyredraw = true
 
+  p.prevwin = api.get_current_win()
+
   local function _open()
     -- cursorline disabled for minimal style
     p.winopts = H.merge(

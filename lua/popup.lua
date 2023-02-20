@@ -2,9 +2,6 @@ local popup = { Pos = require("popup.wincfg").Pos }
 
 -- api {{{1
 local api = require("popup.util").api
-local curwin = api.get_current_win
-local win_is_valid = api.win_is_valid
-local win_close = api.win_close
 local H = require("popup.helpers")
 -- }}}
 
@@ -187,7 +184,6 @@ function popup.new(opts)
   p.namespace = p.namespace or "_G"
   p.pos = p.pos or Pos.AT_CURSOR
   p.follow = not p.enter and p.follow and p.pos == Pos.AT_CURSOR
-  p.prevwin = win_is_valid(p.prevwin or -1) and p.prevwin or curwin()
   -- let the popup redraw automatically by default when its content changes
   p.autoredraw = true_or_false(p.autoredraw, true)
 
@@ -238,7 +234,7 @@ function popup.panic()
   end
   for _, win in ipairs(api.list_wins()) do
     if api.win_get_config(win).relative ~= "" then
-      win_close(win, true)
+      api.win_close(win, true)
     end
   end
 end

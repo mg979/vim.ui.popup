@@ -181,6 +181,9 @@ local function do_wincfg(p)
   if p.pos == Pos.CUSTOM then
     return update_wincfg(p)
   end
+  if not api.win_is_valid(p.prevwin) then
+    p.prevwin = api.get_current_win()
+  end
   local o = p.wincfg
   local editor = p.pos >= Pos.EDITOR_CENTER
   local cursor = p.pos == Pos.AT_CURSOR
